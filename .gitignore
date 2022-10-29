@@ -30,3 +30,20 @@
 *.exe
 *.out
 *.app
+
+# CCS
+.ccsproject
+.cproject
+.launches
+.project
+.settings/
+targetConfigs/
+
+# Build folders
+Debug/
+Release/
+build/
+build-*/
+
+# Microcontroller specifics
+*.cmd
