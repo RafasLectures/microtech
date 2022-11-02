@@ -9,7 +9,7 @@
 
 #include <cstdint>
 #include <chrono>
-/*
+/**
  * Method to set the desired bits of a register to 1.
  * @param registerRef is the reference to the register to be accessed.
  *                    (the reference is like a const pointer, so we are accessing directly the
@@ -48,7 +48,7 @@ constexpr void setRegisterBits(volatile TYPE& registerRef, TYPE bitSelection) no
     registerRef |= bitSelection;
 }
 
-/*
+/**
  * Method to set the desired bits of a register to 0.
  * @param registerRef is the reference to the register to be accessed. For info on reference check the documentation of setRegister
  * @param bitSelection is the bits in which you want to set to 0. E.g if you want to reset bit4 of the register P1DIR you would call:
@@ -79,6 +79,21 @@ constexpr void toggleRegisterBits(volatile TYPE& registerRef, TYPE bitSelection)
     registerRef ^= bitSelection;
 }
 
+/**
+ * Method to get specific bits from a register and shift them to the right.
+ * @param registerRef is the reference to the register to be accessed. For info on reference check the documentation of setRegister
+ * @param bitSelection is the bits in which you want to get. E.g if you want to get the value of bit4 of the register P1DIR and shift the result 4 times
+ *                     to the right, so the result would be 1 or 0, then you would call:
+ *                     @code
+ *                        getRegisterBits(P1DIR, 0x10, 4);
+ *                     @endcode
+ * @tparam TYPE to enforce that one is setting the bitSelection according to the register size. More info bellow.
+ * For info on template or constexpr specifier, check the documentation of setRegister
+ */
+template <typename TYPE>
+constexpr TYPE getRegisterBits(volatile TYPE& registerRef, TYPE bitSelection, TYPE shiftsRight) noexcept {
+     return (registerRef & bitSelection) >> shiftsRight;
+}
 
 /**
  * Method implements the sequence to set one or multiple IOs as an output.
@@ -129,7 +144,7 @@ constexpr void setupTimer0() {
     constexpr int64_t CLK_DIV = 8;
 
     // Declares the duration given by the user and then converts it to microseconds
-    // !! Duration is a type and periodValue is a value!!
+    // !! Duration is a type and periodValue is a value !!
     constexpr Duration period(periodValue);
     constexpr std::chrono::microseconds periodInUs = period;
 
@@ -137,13 +152,13 @@ constexpr void setupTimer0() {
      * Internal clock is 1 MHz, according to templateEMP.h
      *
      * So the compare value is basically the (period[us] / (1us * clockDiv)) - 1. The -1 because the counter starts in 0
-     * Since all the the values are constants, the division is evaluated in compile time.
+     * !!!! Since all the the values are constants, the division is evaluated in compile time. !!!!!
      */
     constexpr int64_t compareValue = (periodInUs.count() / CLK_DIV) - 1;
 
     // Static assert so if the compareValue is bigger than 0xFFFF the compiler gives an error. This is not added as instructions in the binary.
     // One could verify that it works by calling "setupTimer0<5, std::chrono::seconds>();".
-    static_assert((compareValue < 0xFFFF), "Cannot set desired timer period. It exceeds the counter maximum value");
+    static_assert((compareValue <= 0xFFFF), "Cannot set desired timer period. It exceeds the counter maximum value");
 
     /* Set Timer 0 compare value. Casted to 16 bits due to register size.
      * One can see that it is the correct value when looking at the disassembly on the call
@@ -160,25 +175,27 @@ constexpr void setupTimer0() {
     TACTL = TASSEL_2 + ID_3 + MC_1;
 }
 
-
-
-/**
-constexpr void setIOsAtPortAsOutput(const uint8_t port, uint16_t bitSelection) noexcept {
-    if (port == 1) {
-
-    } else if (port == 2) {
-        setIOsAsOutput(P2DIR, P2SEL, P2SEL2, static_cast<uint8_t>(bitSelection));
-    } else if (port == 3) {
-        setIOsAsOutput(P3DIR, P3SEL, P3SEL2, static_cast<uint8_t>(bitSelection));
-    }
-}
-*/
-
 //Timer0 Interruption
 #pragma vector = TIMER0_A0_VECTOR
-__interrupt void Timer_A_CCR0_ISR(void)
-{
+__interrupt void Timer_A_CCR0_ISR(void) {
+    // Create this variable to know if pin P1.5 has to be toggled
+    // Since it is just half the frequency, it means that it has to be toggled
+    // every second time the timer interrupts
+    static bool toggleBit5 = false;
+
+    /*
+     * For the future it would be easier to have a list of std::function and then
+     * one could register a function to be called after X time.
+     */
+
+    // Toggle pin P1.4
     toggleRegisterBits(P1OUT, static_cast<uint8_t>(BIT4));
+
+    if(toggleBit5) {
+        toggleRegisterBits(P1OUT, static_cast<uint8_t>(BIT5));
+    }
+    // change value of flag
+    toggleBit5 ^= true;
 }
 
 void main() {
@@ -190,19 +207,48 @@ void main() {
     // Disable all internal resistors of the port
     resetRegisterBits(P1REN, static_cast<uint8_t>(0xFF));
 
+    /*
+     * Pin X10 can also be used to activate a heater (in the circuit represented by a resistor)
+     * It polarizes the transistor T2, which connects the heater resistor to ground.
+     * For it to function correctly, the jumper JP4 must be connected between pin 1 and 2.
+     */
     setIOsAsOutput(P1DIR, P1SEL, P1SEL2, static_cast<uint8_t>(BIT4 | BIT5));
 
-    //setIOsAtPortAsOutput(1, BIT4);
-    //setPinAsOutput(IOPins::CON3_P1_4);
+    // Initialize local variable that stores the value of Pin P1.5
+    uint8_t pin5State = getRegisterBits(P1OUT, static_cast<uint8_t>(BIT5), static_cast<uint8_t>(5));
 
-    //setRegisterBits(P1OUT, static_cast<uint8_t>(BIT5));
-    //resetRegisterBits(P1OUT, static_cast<uint8_t>(BIT4));
-
-    // set timer interruption for 500ms
-    setupTimer0<500, std::chrono::milliseconds>();
+    // set timer interruption for 250ms
+    setupTimer0<250, std::chrono::milliseconds>();
     _enable_interrupt();
 
-    while(true) {}
+    // Infinite loop
+    while(true) {
+        if(serialAvailable()) {
+            // Need to make sure that there are no more bytes comming
+            // Loop while there are bytes available in the serial
+            while(serialAvailable()) {
+                // Flush the serial
+                serialFlush();
+
+                // Add a delay to give time if there are more bytes "coming"
+                // Serial Baudrate is 9600 bits/s
+                // 1s is 1.000.000 cycles, since one cycle is 1us.
+                // Calculate cycles per bit:
+                // 1.000.000 / 9600 = 104,16 cycles/bit
+                // 104,16 * 8 = 833,33 cycles/byte.
+                // Add some more cycles just to be safe.
+                __delay_cycles(1500);
+            }
+            // Get value from register and store in local variable to prevent access from interrupt and while loop
+            pin5State = getRegisterBits(P1OUT, static_cast<uint8_t>(BIT5), static_cast<uint8_t>(5));
+            if(pin5State) {
+                serialPrint("LED D7 is ON\n");
+            } else {
+                serialPrint("LED D7 is OFF\n");
+            }
+
+        }
+    }
 
 }
 
