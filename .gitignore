@@ -50,3 +50,7 @@ build-*/
 
 # CLion files
 .idea
+
+# CCS Project
+.cproject
+.ccproject
