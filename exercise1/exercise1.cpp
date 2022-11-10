@@ -1,13 +1,40 @@
-/*
- * main.cpp
+/***************************************************************************//**
+ * @file                    exercise1.cpp
+ * @author                  Rafael Andrioli Bauer
+ * @date                    26.10.2022
+ * @matriculation number    5163344
+ * @e-mail contact          abauer.rafael@gmail.com
  *
- *  Created on: 26.10.2022
- *      Author: Rafael Andrioli Bauer
- */
+ * @brief   Exercise 1 - LED blink and serial communication
+ *
+ * Description: write about your code
+ *
+ * Pin connections: mention all the pin connections
+ *
+ * Theory answers: if required. With question number.
+ *
+ * Tasks completed:
+ *  Task 1
+ *      a) [x] using P1.4                    (1.0/1.0 pt.)
+ *         [x] blinks correctly              (1.0/1.0 pt.)
+ *         [x] with 2 Hertz                  (1.0/1.0 pt.)
+ *      b) [x] using P1.5                    (1.0/1.0 pt.)
+ *         [x] half of the blinking freq.    (1.0/1.0 pt.)
+ *         [x] description for X10           (0.75/1.0 pt.)
+ *      c) [x] serialAvailable/serialRead    (1.0/1.0 pt.)
+ *         [x] serialFlush/serialRead        (1.0/1.0 pt.)
+ *         [x] returning the state           (1.0/1.0 pt.)
+ *
+ *  Task 2
+           [ ] feedback.txt                  (0.0/1.0 pt.)
+ *
+ * @note    The project was exported using CCS 12.1.0.00007
+ ******************************************************************************/
+
 
 #include <templateEMP.h>
 
-#include "helpers.hpp"
+#include "helpers"
 
 #include <cstdint>
 #include <chrono>
@@ -92,28 +119,7 @@ constexpr void setupTimer0() {
     TACTL = TASSEL_2 + ID_3 + MC_1;
 }
 
-//Timer0 Interruption
-#pragma vector = TIMER0_A0_VECTOR
-__interrupt void Timer_A_CCR0_ISR(void) {
-    // Create this variable to know if pin P1.5 has to be toggled
-    // Since it is just half the frequency, it means that it has to be toggled
-    // every second time the timer interrupts
-    static bool toggleBit5 = false;
 
-    /*
-     * For the future it would be easier to have a list of std::function and then
-     * one could register a function to be called after X time.
-     */
-
-    // Toggle pin P1.4
-    toggleRegisterBits(P1OUT, static_cast<uint8_t>(BIT4));
-
-    if(toggleBit5) {
-        toggleRegisterBits(P1OUT, static_cast<uint8_t>(BIT5));
-    }
-    // change value of flag
-    toggleBit5 ^= true;
-}
 
 void main() {
 
@@ -168,4 +174,3 @@ void main() {
     }
 
 }
-

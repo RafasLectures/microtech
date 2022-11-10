@@ -1,6 +1,14 @@
-//
-// Created by Rafael Andrioli Bauer on 05.11.22.
-//
+/***************************************************************************//**
+ * @file                    helpers.hpp
+ * @author                  Rafael Andrioli Bauer
+ * @date                    09.11.2022
+ * @matriculation number    5163344
+ * @e-mail contact          abauer.rafael@gmail.com
+ *
+ * @brief   Header that provides some helper methods to manipulate the registers
+ *
+ * @note    The project was exported using CCS 12.1.0.00007
+ ******************************************************************************/
 
 #ifndef MICROTECH_HELPERS_HPP
 #define MICROTECH_HELPERS_HPP
@@ -43,7 +51,7 @@
  */
 template <typename TYPE>
 constexpr void setRegisterBits(volatile TYPE& registerRef, TYPE bitSelection) noexcept {
-registerRef |= bitSelection;
+    registerRef |= bitSelection;
 }
 
 /**
@@ -59,7 +67,7 @@ registerRef |= bitSelection;
  */
 template <typename TYPE>
 constexpr void resetRegisterBits(volatile TYPE& registerRef, TYPE bitSelection) noexcept {
-registerRef &= ~bitSelection;
+    registerRef &= ~bitSelection;
 }
 
 /**
@@ -74,7 +82,7 @@ registerRef &= ~bitSelection;
  */
 template <typename TYPE>
 constexpr void toggleRegisterBits(volatile TYPE& registerRef, TYPE bitSelection) noexcept {
-registerRef ^= bitSelection;
+    registerRef ^= bitSelection;
 }
 
 /**
@@ -90,7 +98,7 @@ registerRef ^= bitSelection;
  */
 template <typename TYPE>
 constexpr TYPE getRegisterBits(volatile TYPE& registerRef, TYPE bitSelection, TYPE shiftsRight) noexcept {
-return (registerRef & bitSelection) >> shiftsRight;
+    return (registerRef & bitSelection) >> shiftsRight;
 }
 
 #endif //MICROTECH_HELPERS_HPP

@@ -1,0 +1,8 @@
+It was straight forward. 
+
+I struggled in one point which was to have the callback functions of the button encapsulated.
+The way it is done now seems a little like a hack to me. There must be a better way of doing this.
+
+One approach would be to create an interface class with pure virtual methods
+and make the StateMachine class inherit from it (a well known approach). What I wondering is
+how to identify which button called the callback then. Somehow there must be some identifiers then. I need to think about this.
