@@ -17,10 +17,14 @@ enum class ButtonState {
     PRESSED
 };
 
-template <GPIOs::Port port>
+template <IOPort port, uint8_t Pin>
 class Button {
 public:
-    constexpr Button(bool invertedLogic, uint8_t inputPin) : inputPin(inputPin), invertedLogic(invertedLogic) {}
+    constexpr Button(bool invertedLogic) : inputPin(), invertedLogic(invertedLogic) {}
+
+    void init() {
+        setState(evaluateButtonState(inputPin.getState()));
+    }
 
     ButtonState getState() noexcept {
         return state;
@@ -39,7 +43,7 @@ public:
     void performDebounce() noexcept {
         static const uint16_t DEBOUNCE_MAX = 5;
 
-        const GPIOs::IOState currentPinState = inputPin.getState();
+        const IOState currentPinState = inputPin.getState();
 
         if(previousPinState == currentPinState) {
             if(debounceCounter < DEBOUNCE_MAX) {
@@ -53,31 +57,37 @@ public:
         }
     }
 
+    void enablePinInterrupt() {
+        inputPin.enableInterrupt();
+    }
+
     void registerStateChangeCallback(void(*callbackPtr)(ButtonState)) {
         stateCallback = callbackPtr;
     }
 
-private:
-    ButtonState evaluateButtonState(const GPIOs::IOState pinState) noexcept {
+
+    ButtonState evaluateButtonState(const IOState pinState) noexcept {
         if(invertedLogic) {
             switch(pinState) {
-            case GPIOs::IOState::LOW: return ButtonState::PRESSED;
+            case IOState::LOW: return ButtonState::PRESSED;
             default:
-            case GPIOs::IOState::HIGH: return ButtonState::RELEASED;
-            }
+            case IOState::HIGH: return ButtonState::RELEASED;
+            };
         }else {
             switch(inputPin.getState()) {
-            case GPIOs::IOState::LOW: return ButtonState::RELEASED;
+            case IOState::LOW: return ButtonState::RELEASED;
             default:
-            case GPIOs::IOState::HIGH: return ButtonState::PRESSED;
-            }
+            case IOState::HIGH: return ButtonState::PRESSED;
+            };
         }
     }
-    GPIOs::InputHandle<port> inputPin;
+
+private:
+    typename GPIOs<port>::InputHandle<Pin> inputPin;
     bool invertedLogic;
     ButtonState state;
     void (*stateCallback)(ButtonState) = nullptr;
-    GPIOs::IOState previousPinState;
+    IOState previousPinState;
     uint16_t debounceCounter = 0;
 };
 

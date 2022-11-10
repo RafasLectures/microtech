@@ -1,8 +1,8 @@
 It was straight forward. 
 
-I struggled in one point which was to have the callback functions of the button encapsulated.
-The way it is done now seems a little like a hack to me. There must be a better way of doing this.
+I created the GPIO and Timer headers so in the future I don't need to worry about
+the whole IO setup and Timer counter calculations. It would be faster to do the next exercises, I think.
 
-One approach would be to create an interface class with pure virtual methods
-and make the StateMachine class inherit from it (a well known approach). What I wondering is
-how to identify which button called the callback then. Somehow there must be some identifiers then. I need to think about this.
+I struggled in one point where I want to have callback functions encapsulated within the object "managing" a resource
+(like GPIO or Timer). The way it is done now seems a little like a hack to me. I hope
+I come up with a better way of doing in the near future.

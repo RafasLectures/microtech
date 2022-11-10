@@ -9,9 +9,14 @@
  *
  * Description: write about your code
  *
- * Pin connections: mention all the pin connections
+ * Pin connections: PB5 <-> CON3:P1.3
+ *                  PB6 <-> CON3:P1.4
+ *                  D6  <-> CON3:P1.5
+ *                  D5  <-> CON3:P1.6
+ *                  D7  <-> CON3:P1.0
+ *                  D9  <-> CON3:P1.7
  *
- * Theory answers: if required. With question number.
+ * Theory answers: None.
  *
  * Tasks completed:
  *  Task 1
@@ -20,16 +25,16 @@
  *         [x] State 3                       (x/1,5 pt.)
  *         [x] State 4                       (x/1,5 pt.)
  *      b) [x] Separate function D6 and D9   (x/1.0 pt.)
- *      c) [ ] PB5 interrupt                 (x/2,0 pt.)
+ *      c) [x] PB5 interrupt                 (x/2,0 pt.)
  *
  *  Task 2
-           [ ] feedback.txt                  (0.0/1.0 pt.)
+ *         [x] feedback.txt                  (x/1.0 pt.)
  *
  * @note    The project was exported using CCS 12.1.0.00007
  ******************************************************************************/
 
 //#define NO_TEMPLATE_UART
-#define polling
+//#define polling
 #include <templateEMP.h>
 
 #include "helpers"
@@ -48,14 +53,14 @@ Timer<8> timer0;
 // P1.5 as output -> named redLedD6
 // P1.6 as output -> named greenLedD5
 // P1.7 as output -> named yellowLedD9
-GPIOs::OutputHandle<GPIOs::Port::PORT_1> blueLedD7 = GPIOs::getOutputHandle<GPIOs::Port::PORT_1>(static_cast<uint8_t>(BIT0));
-GPIOs::OutputHandle<GPIOs::Port::PORT_1> redLedD6 = GPIOs::getOutputHandle<GPIOs::Port::PORT_1>(static_cast<uint8_t>(BIT5));
-GPIOs::OutputHandle<GPIOs::Port::PORT_1> greenLedD5 = GPIOs::getOutputHandle<GPIOs::Port::PORT_1>(static_cast<uint8_t>(BIT6));
-GPIOs::OutputHandle<GPIOs::Port::PORT_1> yellowLedD9 = GPIOs::getOutputHandle<GPIOs::Port::PORT_1>(static_cast<uint8_t>(BIT7));
+GPIOs<IOPort::PORT_1>::OutputHandle<0> blueLedD7;// = GPIOs<IOPort::PORT_1>::getOutputHandle(static_cast<uint8_t>(BIT0));
+GPIOs<IOPort::PORT_1>::OutputHandle<5> redLedD6; // = GPIOs<IOPort::PORT_1>::getOutputHandle(static_cast<uint8_t>(BIT5));
+GPIOs<IOPort::PORT_1>::OutputHandle<6> greenLedD5; // = GPIOs<IOPort::PORT_1>::getOutputHandle(static_cast<uint8_t>(BIT6));
+GPIOs<IOPort::PORT_1>::OutputHandle<7> yellowLedD9; // = GPIOs<IOPort::PORT_1>::getOutputHandle(static_cast<uint8_t>(BIT7));
 
 // Declare the two buttons
-Button<GPIOs::Port::PORT_1> pb5(true, static_cast<uint8_t>(BIT3));
-Button<GPIOs::Port::PORT_1> pb6(true, static_cast<uint8_t>(BIT4));
+Button<IOPort::PORT_1, 3> pb5(true);
+Button<IOPort::PORT_1, 4> pb6(true);
 
 /**
  * Class to bundle state machine specification
@@ -84,13 +89,13 @@ public:
     void controlD6AndD9() {
         // Evaluation of the redLedD6 and yellowLedD9
         if(statePB5 == ButtonState::PRESSED && statePB6 == ButtonState::RELEASED) {
-            redLedD6.setState(GPIOs::IOState::HIGH);
-            yellowLedD9.setState(GPIOs::IOState::LOW);
+            redLedD6.setState(IOState::HIGH);
+            yellowLedD9.setState(IOState::LOW);
             // Puts count to 0 so timer starts counting
             countTimeD6On = 0;
         } else{
-            redLedD6.setState(GPIOs::IOState::LOW);
-            yellowLedD9.setState(GPIOs::IOState::HIGH);
+            redLedD6.setState(IOState::LOW);
+            yellowLedD9.setState(IOState::HIGH);
         }
     }
 
@@ -146,13 +151,11 @@ void pollingTaskCallback() {
     if(stateMachine.countTimeD6On < 50) {
         stateMachine.countTimeD6On++;
     } else{
-        redLedD6.setState(GPIOs::IOState::LOW);
-        yellowLedD9.setState(GPIOs::IOState::HIGH);
+        redLedD6.setState(IOState::LOW);
+        yellowLedD9.setState(IOState::HIGH);
     }
 
 }
-
-
 
 void main() {
     initMSP();
@@ -160,26 +163,36 @@ void main() {
     pb5.registerStateChangeCallback(&listenerPB5);
     pb6.registerStateChangeCallback(&listenerPB6);
 
+    pb5.init();
+    pb6.init();
+
     timer0.init();
 
     TaskHandler<5, std::chrono::milliseconds> pollingTask(&pollingTaskCallback, true);
 
     timer0.registerTask(pollingTask);
-
+#ifndef polling
+    pb5.enablePinInterrupt();
+#endif
     __enable_interrupt();
     while(1) {}
 }
 
-// Not sure how t encapsulate the interruption yet.
+// Not sure how t encapsulate the interruptions yet.
+
 //Timer0 Interruption
 #pragma vector = TIMER0_A0_VECTOR
 __interrupt void Timer_A_CCR0_ISR(void) {
    timer0.interruptionHappened();
 }
 
+#ifndef polling
 // Port 1 interrupt vector
 # pragma vector = PORT1_VECTOR
 __interrupt void Port_1_ISR ( void ) {
-    // Clear interrupt flag ( here - as an example - the flag of P1 .0).
-    P1IFG &= ~ BIT0 ;
+    volatile uint8_t registerVal = getRegisterBits(P1IES, static_cast<uint8_t>(BIT3), static_cast<uint8_t>(3));
+    pb5.setState(pb5.evaluateButtonState((IOState)(registerVal ^ 0x01)));
+    toggleRegisterBits(P1IES, static_cast<uint8_t>(BIT3)); // toggles direction of edge high/low and low/high
+    resetRegisterBits(P1IFG, static_cast<uint8_t>(BIT3));
 }
+#endif
