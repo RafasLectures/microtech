@@ -29,6 +29,7 @@
  ******************************************************************************/
 
 //#define NO_TEMPLATE_UART
+#define polling
 #include <templateEMP.h>
 
 #include "helpers"
@@ -52,6 +53,7 @@ GPIOs::OutputHandle<GPIOs::Port::PORT_1> redLedD6 = GPIOs::getOutputHandle<GPIOs
 GPIOs::OutputHandle<GPIOs::Port::PORT_1> greenLedD5 = GPIOs::getOutputHandle<GPIOs::Port::PORT_1>(static_cast<uint8_t>(BIT6));
 GPIOs::OutputHandle<GPIOs::Port::PORT_1> yellowLedD9 = GPIOs::getOutputHandle<GPIOs::Port::PORT_1>(static_cast<uint8_t>(BIT7));
 
+// Declare the two buttons
 Button<GPIOs::Port::PORT_1> pb5(true, static_cast<uint8_t>(BIT3));
 Button<GPIOs::Port::PORT_1> pb6(true, static_cast<uint8_t>(BIT4));
 
@@ -163,6 +165,7 @@ void main() {
     TaskHandler<5, std::chrono::milliseconds> pollingTask(&pollingTaskCallback, true);
 
     timer0.registerTask(pollingTask);
+
     __enable_interrupt();
     while(1) {}
 }
@@ -174,4 +177,9 @@ __interrupt void Timer_A_CCR0_ISR(void) {
    timer0.interruptionHappened();
 }
 
-
+// Port 1 interrupt vector
+# pragma vector = PORT1_VECTOR
+__interrupt void Port_1_ISR ( void ) {
+    // Clear interrupt flag ( here - as an example - the flag of P1 .0).
+    P1IFG &= ~ BIT0 ;
+}
