@@ -49,6 +49,8 @@ enum class IOState {
 /**
  * This is a actually serves as a namespace to keep some GPIO classes together
  * and hides away some non-public types.
+ *
+ * @tparam port IOPort of that is handled by the GPIO instance
  */
 template <IOPort port>
 class GPIOs {
@@ -67,9 +69,11 @@ private:
      * methods. This way, one doesn't forget to swap one value when doing
      * a change.
      *
+     * Since it is declared in the private section within the GPIOs class,
+     * it cannot be "seen" from the outside.
+     *
      * The port number can be specified as a template parameter.
      *
-     * @tparam port Port in which one wants to get the register references from
      */
     class Registers {
     public:
@@ -230,8 +234,12 @@ private:
      *
      * It cannot be constructed by anyone else other then its childs, since the constructor
      * is protected.
+     * 
+     * Since it is declared in the private section within the GPIOs class,
+     * it cannot be "seen" from the outside.
      *
-     * @tparam port IOPort of the pin in which the handle will be for
+     * @tparam Pin The pin of the IOHandle
+     * @tparam bitMask The bit mask of the pin. The default value is 0x01 << Pin
      */
     template <uint8_t Pin, uint8_t bitMask = 0x01 << Pin>
     class IoHandleBase{
@@ -252,7 +260,13 @@ private:
                 return IOState::LOW;
             }
         }
-
+         
+        /**
+         * Method to enable an interrupt at the pin.
+         * At the moment hard-coded to be High/Low edge
+         * 
+         * @note it can be improved in the future to take the edge as a parameter.
+         */ 
         void enableInterrupt() noexcept {
             // somehow I need to find a way to wrap the pin interrupt here and
             // add a callback. But for now we just enable the pin interrupt and
@@ -275,19 +289,19 @@ public:
      * Whenever someone creates the handle, the GPIO pin gets set as an output.
      * So to use a pin as an output, is very straight forward. One only has to call:
      *  @code
-     *      GPIOs::OutputHandle<GPIOs::IOPort::PORT_1> p1_0 = GPIOs::getOutputHandle<GPIOs::IOPort::PORT_1>(static_cast<uint8_t>(BIT0));
-     *      p1_0.setState(GPIOs::IOState::HIGH);
-     *      p1_0.setState(GPIOs::IOState::LOW);
+     *      GPIOs<IOPort::PORT_1>::OutputHandle<0> p1_0;
+     *      p1_0.setState(IOState::HIGH);
+     *      p1_0.setState(IOState::LOW);
      *  @endcode
      *
-     * @tparam port IOPort of the pin in which the handle will be for
+     * @tparam Pin Pin in which the handle will be for.
+     * @tparam bitMask The bitMask of the Pin. Doesn't have to be explicitly set.
      */
     template <uint8_t Pin, uint8_t bitMask = 0x01 << Pin>
     class OutputHandle : public IoHandleBase<Pin>{
     public:
         /**
-         * Class constructor. It is responsible for calling the parent class constructor
-         * as well as setting this IO as an output.
+         * Class constructor. It is responsible for setting this IO as an output.
          *
          * Since the constructor is constexpr the compiler tries to resolved in compile time
          */
@@ -298,23 +312,10 @@ public:
         }
 
         /**
-         * Sets the Pin to an specific state. IOState::HIGH or IOState::LOW
+         * Overloaded method (see next method) so one can set the pin state using a boolean.
+         * true = IOState::HIGH
+         * false == IOState::LOW
          *
-         * The compiler tries to already resolve this in compile time.
-         *
-         * @param state Desired pin state.
-         */
-        constexpr void setState(IOState state) {
-            if(state == IOState::HIGH) {
-                setRegisterBits(registers.PxOut(), bitMask);
-            } else {
-                resetRegisterBits(registers.PxOut(), bitMask);
-            }
-        }
-
-        /**
-         * Sets the Pin to an specific state. IOState::HIGH or IOState::LOW
-         * Overloaded from before so it can also accept boolean as an input
          * The compiler tries to already resolve this in compile time.
          *
          * @param state Desired pin state.
@@ -325,6 +326,17 @@ public:
             } else {
                 resetRegisterBits(registers.PxOut(), bitMask);
             }
+        }
+        /**
+         * Sets the Pin to an specific state. IOState::HIGH or IOState::LOW
+         *
+         * The compiler tries to already resolve this in compile time.
+         *
+         * @param state Desired pin state.
+         */
+        constexpr void setState(IOState state) {
+            // Calls the overloaded method with boolean arguments
+            setState(state == IOState::HIGH);
         }
 
         /**
@@ -344,18 +356,18 @@ public:
      * Whenever someone creates the handle, the GPIO pin gets set as an input.
      * So to use a pin as an input, is very straight forward. One only has to call:
      *  @code
-     *      GPIOs::InputHandle<GPIOs::IOPort::PORT_1> p1_0 = GPIOs::getInputHandle<GPIOs::IOPort::PORT_1>(static_cast<uint8_t>(BIT0));
-     *      GPIOs::IOState stateP1_0 = p1_0.getState();
+     *      GPIOs<IOPort::PORT_1>::InputHandle<0> p1_0;
+     *      IOState stateP1_0 = p1_0.getState();
      *  @endcode
      *
-     * @tparam port IOPort of the pin in which the handle will be for
+     * @tparam Pin Pin in which the handle will be for.
+     * @tparam bitMask The bitMask of the Pin. Doesn't have to be explicitly set.
      */
     template <uint8_t Pin, uint8_t bitMask = 0x01 << Pin>
     class InputHandle : public IoHandleBase<Pin>{
     public:
         /**
-         * Class constructor. It is responsible for calling the parent class constructor
-         * as well as setting this IO as an input.
+         * Class constructor. It is responsible for setting this IO as an input.
          *
          * Since the constructor is constexpr the compiler tries to resolved in compile time
          *
@@ -365,12 +377,12 @@ public:
             resetRegisterBits(registers.PxDir(), bitMask);
             resetRegisterBits(registers.PxSel(), bitMask);
             resetRegisterBits(registers.PxSel2(), bitMask);
-            // Enabled Pull-Up resistor!
+            // Enable Pull-Up resistor!
             setRegisterBits(registers.PxOut(), bitMask);
             setRegisterBits(registers.PxRen(), bitMask);
         }
 
-        // getState class is implemented in the IoHandleBase, since this class inherits from it
+        // getState method is implemented in the IoHandleBase, since this class inherits from it
         // it also has that functionality
     };
 
@@ -394,6 +406,8 @@ public:
     /**
      * Method to get an OutputHandle. To see the purpose of an OutputHandle, please check its documentation
      * above.
+     *
+     * @note Maybe this willbe deleted. There is no need for this anymore.
      */
     template <uint8_t Pin>
     static constexpr OutputHandle<Pin> getOutputHandle() noexcept {
@@ -403,6 +417,8 @@ public:
     /**
      * Method to get an InputHandle. To see the purpose of an InputHandle, please check its documentation
      * above.
+     *
+     * @note Maybe this willbe deleted. There is no need for this anymore.
      */
     template <uint8_t Pin>
     static constexpr InputHandle<Pin> getInputHandle(const uint8_t bitSelection) noexcept {
