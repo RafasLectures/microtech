@@ -306,9 +306,20 @@ public:
          * Since the constructor is constexpr the compiler tries to resolved in compile time
          */
         constexpr OutputHandle() {
-            setRegisterBits(P1DIR, bitMask);
-            resetRegisterBits(P1SEL, bitMask);
-            resetRegisterBits(P1SEL2, bitMask);
+            setRegisterBits(registers.PxDir(), bitMask);
+            resetRegisterBits(registers.PxSel(), bitMask);
+            resetRegisterBits(registers.PxSel2(), bitMask);
+        }
+
+        /**
+         * Class constructor with the possibility of setting an initial state.
+         *
+         * Since the constructor is constexpr the compiler tries to resolved in compile time
+         *
+         * @param initialState initial state of the output
+         */
+        constexpr OutputHandle(IOState initialState) : OutputHandle() {
+            setState(initialState);
         }
 
         /**

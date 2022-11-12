@@ -3,6 +3,11 @@ It was straight forward.
 I created the GPIO and Timer headers so in the future I don't need to worry about
 the whole IO setup and Timer counter calculations. It would be faster to do the next exercises, I think.
 
-I struggled in one point where I want to have callback functions encapsulated within the object "managing" a resource
+I struggled in one point where I want to have the interruptions and callback functions encapsulated within the object "managing" a resource
 (like GPIO or Timer). The way it is done now seems a little like a hack to me. I hope
 I come up with a better way of doing in the near future.
+
+Some ideas for the future is to have a googletest setup where you could have your own msp430g2553 header mocking the real implementation.
+We could then write our software and test in our machine to make sure we are setting the correct registers approapriately. 
+Also we could have a GitHub classroom with an action that would basically run those tests. It would also give an impression to the students
+about git, and Continuous integration pipeline.

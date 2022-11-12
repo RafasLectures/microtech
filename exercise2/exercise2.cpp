@@ -10,7 +10,7 @@
  * Description: The initialization of the IOs is performed before main, since
  *              the declaration of the IOs (OutputHandle and Buttons) are outside void main().
  *              
- *              In the beggining of main(), the system clocks and watchdog are initialized via the
+ *              In the beginning of main(), the system clocks and watchdog are initialized via the
  *              initMSP() call followed by the callback registration of the methods
  *              "listenPB5() and listenPB6()" to the buttons PB5 and PB6 respectively. This means
  *              that whenever PB5 changes its state listenPB5() gets called. The same happens
@@ -50,7 +50,7 @@
  ******************************************************************************/
 
 //#define NO_TEMPLATE_UART
-//#define polling
+#define polling
 #include <templateEMP.h>
 
 #include "helpers"
@@ -64,15 +64,15 @@ using namespace Microtech;
 // Declared Timer0 Abstraction with CLK_DIV of 8
 Timer<8> timer0;
 
-// Declaration of IOs
+// Declaration of IOs and their initial states
 // P1.0 as output -> named blueLedD7
 // P1.5 as output -> named redLedD6
 // P1.6 as output -> named greenLedD5
 // P1.7 as output -> named yellowLedD9
-GPIOs<IOPort::PORT_1>::OutputHandle<0> blueLedD7;
-GPIOs<IOPort::PORT_1>::OutputHandle<5> redLedD6;
-GPIOs<IOPort::PORT_1>::OutputHandle<6> greenLedD5;
-GPIOs<IOPort::PORT_1>::OutputHandle<7> yellowLedD9;
+GPIOs<IOPort::PORT_1>::OutputHandle<0> blueLedD7(IOState::LOW);
+GPIOs<IOPort::PORT_1>::OutputHandle<5> redLedD6(IOState::LOW);
+GPIOs<IOPort::PORT_1>::OutputHandle<6> greenLedD5(IOState::LOW);
+GPIOs<IOPort::PORT_1>::OutputHandle<7> yellowLedD9(IOState::HIGH);
 
 // Declare the two buttons
 Button<IOPort::PORT_1, 3> pb5(true);
@@ -186,7 +186,7 @@ void pollingTaskCallback() {
 void main() {
     initMSP();
     
-    // Registers static functions as callbacks of the button instances
+    // Registers static functions as callback of the button instances
     pb5.registerStateChangeCallback(&listenerPB5);
     pb6.registerStateChangeCallback(&listenerPB6);
 
@@ -235,7 +235,8 @@ __interrupt void Port_1_ISR ( void ) {
     // If the edge detection is 0 => LOW -> HIGH, then the IOState must be HIGH, so the 
     // result of 0 XOR 1 is 1.
     ButtonState pb5CurrentState = pb5.evaluateButtonState((IOState)(registerVal ^ 0x01)); 
-    // Sets the state of th button based on the button state evaluation.
+
+    // Sets the state of the button based on the button state evaluation.
     // If the button state is different, internally the button calls its callback which calls
     // the state machine evaluation.
     pb5.setState(pb5CurrentState);

@@ -42,12 +42,14 @@ namespace Microtech {
  */
 class TaskHandlerBase {
 public:
+    typedef void (*Callback)();  ///< Type definition of callback
+
     /**
      * Class constructor. 
      * @param callback function pointer to task callback
      * @param isPeriodic To inform weather this is a one-time callback (non periodic) or it is periodic.
      */
-    constexpr TaskHandlerBase(void (*callback)(), bool isPeriodic) : taskCallback(callback), isPeriodic(isPeriodic) {}
+    constexpr TaskHandlerBase(Callback callback, bool isPeriodic) : taskCallback(callback), isPeriodic(isPeriodic) {}
 
     /**
      * Function intended to be called by the timer interrupt and it basically calls the callback.
@@ -61,7 +63,7 @@ public:
     }
 
 private:
-    const void (*taskCallback)() = nullptr;  ///< Callback pointer. Initially null, but can be set on constructor
+    const Callback taskCallback = nullptr;  ///< Callback pointer. Initially null, but can be set on constructor
     const bool isPeriodic;                   ///< Stores if the task is periodic or not
 };
 
