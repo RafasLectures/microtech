@@ -13,7 +13,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_subdirectory(hal)
-add_subdirectory(app)
+add_subdirectory(common)
+add_subdirectory(exercise1)
+add_subdirectory(exercise2)
+add_subdirectory(exercise3)
 
 

@@ -24,10 +24,9 @@
 #include "helpers.hpp"
 
 #include <msp430g2553.h>
-#include <cstdint>
-#include <chrono>
 #include <array>
-
+#include <chrono>
+#include <cstdint>
 
 namespace Microtech {
 /**
@@ -35,38 +34,37 @@ namespace Microtech {
  * is since a timer would store different task handlers, it cannot be tamplated
  * but for registering tasks the idea is that it is templated, because
  * there are some static calculations that can be done.
- * 
+ *
  * So in order to have a type that can be used to put in an array
  * the TaskHandlerBase was created. It is the parent class of a TaskHandler.
- * 
+ *
  */
 class TaskHandlerBase {
 public:
-    typedef void (*Callback)();  ///< Type definition of callback
+  typedef void (*Callback)();  ///< Type definition of callback
 
-    /**
-     * Class constructor. 
-     * @param callback function pointer to task callback
-     * @param isPeriodic To inform weather this is a one-time callback (non periodic) or it is periodic.
-     */
-    constexpr TaskHandlerBase(Callback callback, bool isPeriodic) : taskCallback(callback), isPeriodic(isPeriodic) {}
+  /**
+   * Class constructor.
+   * @param callback function pointer to task callback
+   * @param isPeriodic To inform weather this is a one-time callback (non periodic) or it is periodic.
+   */
+  constexpr TaskHandlerBase(Callback callback, bool isPeriodic) : taskCallback(callback), isPeriodic(isPeriodic) {}
 
-    /**
-     * Function intended to be called by the timer interrupt and it basically calls the callback.
-     */
-    inline void callCallback() {
-        // Make sure the function pointer is not null
-        // So we don't call an invalid address
-        if(taskCallback != nullptr) {
-            taskCallback();
-        }
+  /**
+   * Function intended to be called by the timer interrupt and it basically calls the callback.
+   */
+  inline void callCallback() {
+    // Make sure the function pointer is not null
+    // So we don't call an invalid address
+    if (taskCallback != nullptr) {
+      taskCallback();
     }
+  }
 
 private:
-    const Callback taskCallback = nullptr;  ///< Callback pointer. Initially null, but can be set on constructor
-    const bool isPeriodic;                   ///< Stores if the task is periodic or not
+  const Callback taskCallback = nullptr;  ///< Callback pointer. Initially null, but can be set on constructor
+  const bool isPeriodic;                  ///< Stores if the task is periodic or not
 };
-
 
 /**
  * TaskHandler is intended for the user to be able to handle different tasks.
@@ -76,174 +74,175 @@ private:
  * up to three timer comparators, so one could say that there are three tasks.
  *
  * Software-wise one can eve multiplex the timer and make multiple tasks with one timer
- * interrupt. Like a scheduler. 
- * 
+ * interrupt. Like a scheduler.
+ *
  * @tparam periodValue Period of the task
- * @tparam Duration Time scale of the period (milliseconds, microseconds...) 
+ * @tparam Duration Time scale of the period (milliseconds, microseconds...)
  */
-template <uint64_t periodValue, typename Duration = std::chrono::microseconds>
+template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
 class TaskHandler : public TaskHandlerBase {
 public:
-    /**
-     * Constructor of TaskHandler.
-     *
-     * @param callback function pointer to task callback
-     * @param isPeriodic To inform weather this is a one-time callback (non periodic) or it is periodic.
-     */
-    constexpr TaskHandler(void (*callback)(), bool isPeriodic) : TaskHandlerBase(callback,isPeriodic) {}
+  /**
+   * Constructor of TaskHandler.
+   *
+   * @param callback function pointer to task callback
+   * @param isPeriodic To inform weather this is a one-time callback (non periodic) or it is periodic.
+   */
+  constexpr TaskHandler(void (*callback)(), bool isPeriodic) : TaskHandlerBase(callback, isPeriodic) {}
 };
 
 /**
  * Timer class is responsible for managing the timer of MSP430.
  *
  */
-template <int64_t CLK_DIV>
+template<int64_t CLK_DIV>
 class Timer {
 public:
-    Timer() = default;
-    ~Timer() = default;
+  Timer() = default;
+  ~Timer() = default;
 
-    /**
-     * Method to initialize the timer. The CLK_DIV is at the moment a template parameter
-     * the timer class.
-     * Apart from that, this method also sets the clock source
-     * and the count type, which are hardcoded. It can also be an argument
-     * in the near future.
+  /**
+   * Method to initialize the timer. The CLK_DIV is at the moment a template parameter
+   * the timer class.
+   * Apart from that, this method also sets the clock source
+   * and the count type, which are hardcoded. It can also be an argument
+   * in the near future.
+   */
+  constexpr void init() {
+    constexpr uint16_t timerInputDivider = getTimerInputDivider();
+    // Choose SMCLK as clock source
+    // Counting in Up Mode
+    TACTL = TASSEL_2 + timerInputDivider + MC_0;
+  }
+  /**
+   * Method to register a task to the timer. It will enable the interrupt of timer 0,
+   * but one must call _enable_interrupt() at some other time
+   * for the interruption start to happen.
+   * It is an easy interface to setup the timer to a desired interrupt period. E.g.:
+   *
+   * @code
+   *  Timer timer0;
+   *
+   *  // Sets periodic task that is called every 500ms
+   *  TaskHandler<500, std::chrono::milliseconds> task1(&task1Callback, true);
+   *  timer0.registerTask(task1);
+   *
+   *  // Sets periodic task that is called every 1s
+   *  TaskHandler<1, std::chrono::seconds> task2(&task2Callback, true);
+   *  timer0.registerTask(task2);
+   *
+   *  // Sets non-periodic task that is once 300us from now
+   *  TaskHandler<500, std::chrono::milliseconds> event1(&event1Callback, false);
+   *  timer0.registerTask(event1);
+   * @endcode
+   *
+   * @tparam periodValue The period value in that specific magnitude.
+   * @tparam Duration std::chrono duration type.
+   *
+   * The whole logic ad calculation is done in compile time. The only thing that goes to the binary is the setting of
+   * the registers.
+   *
+   * At the moment it is only supported adding one periodic task and no non-periodic
+   * Usually when calling the registerTask, the template parameters don't have to be completed,
+   * since the compiler can deduce them from the TaskHandler type.
+   */
+  template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
+  constexpr void registerTask(TaskHandler<periodValue, Duration>& task) {
+    // Gets the timer0 compare value
+    constexpr uint16_t compareValue = calculateCompareValue<periodValue, Duration>();
+
+    // For now only one task. This is work in progress.
+    // Task is added to taskHandlers array
+    taskHandlers[0] = &task;
+
+    /* Set Timer 0 compare value.
+     * One can see that it is the correct value when looking at the disassembly on the call:
+     * TaskHandler<500, std::chrono::milliseconds> task1(&task1Callback, true);
+     * registerTask(task1); the assembly command is:
+     * MOV.W   #0xf423,&Timer0_A3_TA0CCR0. Where #0xf423 is the value coming from compareValue evaluated in compile time
+     * which is correct: (500000/8)-1 = 62499 = 0xF423.
      */
-    constexpr void init() {
-        constexpr uint16_t timerInputDivider = getTimerInputDivider();
-        // Choose SMCLK as clock source
-        // Counting in Up Mode
-        TACTL = TASSEL_2 + timerInputDivider + MC_0;
-    }
-    /**
-     * Method to register a task to the timer. It will enable the interrupt of timer 0,
-     * but one must call _enable_interrupt() at some other time
-     * for the interruption start to happen.
-     * It is an easy interface to setup the timer to a desired interrupt period. E.g.:
-     *
-     * @code
-     *  Timer timer0;
-     * 
-     *  // Sets periodic task that is called every 500ms
-     *  TaskHandler<500, std::chrono::milliseconds> task1(&task1Callback, true);
-     *  timer0.registerTask(task1);
-     *  
-     *  // Sets periodic task that is called every 1s
-     *  TaskHandler<1, std::chrono::seconds> task2(&task2Callback, true);
-     *  timer0.registerTask(task2);
-     *
-     *  // Sets non-periodic task that is once 300us from now
-     *  TaskHandler<500, std::chrono::milliseconds> event1(&event1Callback, false);
-     *  timer0.registerTask(event1);
-     * @endcode
-     *
-     * @tparam periodValue The period value in that specific magnitude.
-     * @tparam Duration std::chrono duration type.
-     *
-     * The whole logic ad calculation is done in compile time. The only thing that goes to the binary is the setting of the registers.
-     * 
-     * At the moment it is only supported adding one periodic task and no non-periodic
-     * Usually when calling the registerTask, the template parameters don't have to be completed,
-     * since the compiler can deduce them from the TaskHandler type.
-     */
-    template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
-    constexpr void registerTask(TaskHandler<periodValue, Duration>& task) {
-        // Gets the timer0 compare value
-        constexpr uint16_t compareValue = calculateCompareValue<periodValue, Duration>();
+    TACCR0 = compareValue;
+    // Enable interrupt for CCR0.
+    TACCTL0 |= CCIE;
+    setRegisterBits(TACTL, static_cast<uint16_t>(MC_1));
+  }
 
-        // For now only one task. This is work in progress.
-        // Task is added to taskHandlers array
-        taskHandlers[0] = &task;
+  /**
+   * Method to deregister a task. But not yet implemented
+   * @param taskHandler Takes the reference of the taskHandler.
+   */
+  bool deregisterTask(TaskHandlerBase& taskHandler) {
+    static_assert(false, "Function not yet implemented")
+  }
 
-        /* Set Timer 0 compare value.
-         * One can see that it is the correct value when looking at the disassembly on the call:
-         * TaskHandler<500, std::chrono::milliseconds> task1(&task1Callback, true);
-         * registerTask(task1); the assembly command is:
-         * MOV.W   #0xf423,&Timer0_A3_TA0CCR0. Where #0xf423 is the value coming from compareValue evaluated in compile time
-         * which is correct: (500000/8)-1 = 62499 = 0xF423.
-         */
-        TACCR0 = compareValue;
-        // Enable interrupt for CCR0.
-        TACCTL0 |= CCIE;
-        setRegisterBits(TACTL, static_cast<uint16_t>(MC_1));
-    }
-    
-    /**
-     * Method to deregister a task. But not yet implemented
-     * @param taskHandler Takes the reference of the taskHandler.
-     */ 
-    bool deregisterTask(TaskHandlerBase& taskHandler) {
-        static_assert(false, "Function not yet implemented")
-    }
+  /**
+   * Function must be called by the timer interrupt.
+   *
+   * @note There must be a better way of doing this. Maybe encapsulating
+   * this function or setting durin runtime the interrupt function
+   * to a private method of the Timer instance. Need to figure this out.
+   */
+  inline void interruptionHappened() {
+    taskHandlers[0]->callCallback();
+  }
 
-    /**
-     * Function must be called by the timer interrupt.
-     *
-     * @note There must be a better way of doing this. Maybe encapsulating
-     * this function or setting durin runtime the interrupt function
-     * to a private method of the Timer instance. Need to figure this out. 
-     */
-    inline void interruptionHappened() {
-        taskHandlers[0]->callCallback();
-    }
-    
 private:
-    /**
-     * Method to get the correct value of the timer interrupt
-     * Divider given in the template parameter of this class.
-     * There is also a static_assert that is triggered in case the
-     * CLK_DIV is invalid.
-     * An enum was not added since this value is also used for the
-     * timerCompareValue calculation.
-     */
-    static constexpr uint16_t getTimerInputDivider() {
-        switch (CLK_DIV) {
-        case 1: return ID_0;
-        case 2: return  ID_1;
-        case 4: return  ID_2;
-        case 8: return  ID_3;
-        default:
-            static_assert(CLK_DIV == 1 || CLK_DIV == 2 || CLK_DIV == 4 || CLK_DIV == 8, "Timer input divider is invalid. Must be either 1, 2, 4 or 8");
-        }
-        return ID_0; // It will actually never get here. But it is needed due to the compiler warning
+  /**
+   * Method to get the correct value of the timer interrupt
+   * Divider given in the template parameter of this class.
+   * There is also a static_assert that is triggered in case the
+   * CLK_DIV is invalid.
+   * An enum was not added since this value is also used for the
+   * timerCompareValue calculation.
+   */
+  static constexpr uint16_t getTimerInputDivider() {
+    switch (CLK_DIV) {
+      case 1: return ID_0;
+      case 2: return ID_1;
+      case 4: return ID_2;
+      case 8: return ID_3;
+      default:
+        static_assert(CLK_DIV == 1 || CLK_DIV == 2 || CLK_DIV == 4 || CLK_DIV == 8,
+                      "Timer input divider is invalid. Must be either 1, 2, 4 or 8");
     }
-    
-    /**
-     * Function to calculate the TACCRx value.
-     * Since it is static constexpr and it has all of its values in compile time, 
-     * this doesn't result in a function call during runtime and it is 
-     * evaluated in compile time resulting in just a number in the program binary.
+    return ID_0;  // It will actually never get here. But it is needed due to the compiler warning
+  }
+
+  /**
+   * Function to calculate the TACCRx value.
+   * Since it is static constexpr and it has all of its values in compile time,
+   * this doesn't result in a function call during runtime and it is
+   * evaluated in compile time resulting in just a number in the program binary.
+   */
+  template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
+  static constexpr uint16_t calculateCompareValue() {
+    // Declares the duration given by the user and then converts it to microseconds
+    // !! Duration is a type and periodValue is a value !!
+    constexpr Duration period(periodValue);
+    constexpr std::chrono::microseconds periodInUs = period;
+
+    /*
+     * Internal clock is 1 MHz, according to templateEMP.h
+     *
+     * So the compare value is basically the (period[us] / (1us * clockDiv)) - 1. The -1 because the counter starts in 0
+     * !!!! Since all the the values are constants, the division is evaluated in compile time. !!!!!
      */
-    template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
-    static constexpr uint16_t calculateCompareValue() {
-        // Declares the duration given by the user and then converts it to microseconds
-        // !! Duration is a type and periodValue is a value !!
-        constexpr Duration period(periodValue);
-        constexpr std::chrono::microseconds periodInUs = period;
+    constexpr int64_t compareValue = (periodInUs.count() / CLK_DIV) - 1;
 
-        /*
-         * Internal clock is 1 MHz, according to templateEMP.h
-         *
-         * So the compare value is basically the (period[us] / (1us * clockDiv)) - 1. The -1 because the counter starts in 0
-         * !!!! Since all the the values are constants, the division is evaluated in compile time. !!!!!
-         */
-        constexpr int64_t compareValue = (periodInUs.count() / CLK_DIV) - 1;
+    // Static assert so if the compareValue is bigger than 0xFFFF the compiler gives an error. This is not added as
+    // instructions in the binary. One could verify that it works by calling "setupTimer0<5, std::chrono::seconds>();".
+    static_assert((compareValue <= 0xFFFF), "Cannot set desired timer period. It exceeds the counter maximum value");
+    return static_cast<uint16_t>(compareValue);
+  }
 
-        // Static assert so if the compareValue is bigger than 0xFFFF the compiler gives an error. This is not added as instructions in the binary.
-        // One could verify that it works by calling "setupTimer0<5, std::chrono::seconds>();".
-        static_assert((compareValue <= 0xFFFF), "Cannot set desired timer period. It exceeds the counter maximum value");
-        return static_cast<uint16_t>(compareValue);
-    }
-
-    /**
-     * List of the task handlers registered to the timer.
-     * 
-     * For now it is only one, but the container is there already so later it is easier
-     * to update the code. And also doesn't add much extra overhead or memory.
-     */
-    std::array<TaskHandlerBase*, 1> taskHandlers;
-                                                  
+  /**
+   * List of the task handlers registered to the timer.
+   *
+   * For now it is only one, but the container is there already so later it is easier
+   * to update the code. And also doesn't add much extra overhead or memory.
+   */
+  std::array<TaskHandlerBase*, 1> taskHandlers;
 };
 
 } /* namespace Microtech */

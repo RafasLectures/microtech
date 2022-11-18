@@ -39,7 +39,7 @@ enum class ButtonState {
  *
  * @note it could be nice to find a way to remove these template parameters from
  * the button and let someone set the pin with a function.
- * 
+ *
  */
 template <IOPort port, uint8_t Pin>
 class Button {
@@ -51,14 +51,14 @@ public:
      * 1 = ButtonState::RELEASED
      */
     constexpr Button(bool invertedLogic) : inputPin(), invertedLogic(invertedLogic) {}
-    
+
     /**
      * Initialize the button. Gets state of the input pin and sets it as its state.
-     */ 
+     */
     void init() noexcept {
         setState(evaluateButtonState(inputPin.getState()));
     }
-    
+
     /**
      * Method to return the buttons state
      * @returns The button state
@@ -66,11 +66,11 @@ public:
     ButtonState getState() noexcept {
         return state;
     }
-    
+
     /**
      * Method to set the state of the button. Whenever a new state is set
      * it is also responsible for calling the button's callback
-     * 
+     *
      * @param newState The new state of the button
      *
      * @note In theory this method should be private, but for now
@@ -84,7 +84,7 @@ public:
             return;
         }
         state = newState;
-        
+
         // Make sure the callback pointer is not null before
         // calling it so there is no invalid memory access
         if(stateCallback != nullptr) {
@@ -95,7 +95,7 @@ public:
     /**
      * Method to perform the button debounce
      * Usually this is will be a function called by another periodic function
-     * to constantly perform the pulling of the button state and then perform 
+     * to constantly perform the pulling of the button state and then perform
      * debounce.
      */
     void performDebounce() noexcept {
@@ -107,7 +107,7 @@ public:
         const IOState currentPinState = inputPin.getState();
 
         // Makes sure that the current state of the pin didn't change from
-        // one iteration to another. 
+        // one iteration to another.
         if(previousPinState == currentPinState) {
             if(debounceCounter < DEBOUNCE_MAX) {
                 debounceCounter++;
@@ -117,20 +117,20 @@ public:
             }
         } else {
             // If the pin state changed, then we reset the counter and set the previous
-            // pin state as the current state, so we can perform the debounce in 
+            // pin state as the current state, so we can perform the debounce in
             // the next iteration
             previousPinState = currentPinState;
             debounceCounter = 0;
         }
     }
-    
+
     /**
      *  Method to enable the interrupt on the pin that the button is connected to.
      */
     void enablePinInterrupt() {
         inputPin.enableInterrupt();
     }
-    
+
     /**
      * Method to register a callback to the the button state, so whenever the button
      * changes state, the callback gets called.
@@ -145,10 +145,10 @@ public:
     /**
      * Method to set the state of the button. Whenever a new state is set
      * it is also responsible for calling the button's callback
-     * 
+     *
      * @param newState The new state of the button
      * @return the button state based on the input state
-     * 
+     *
      * @note In theory this method should be private, but for now
      *       I could not find a way to have the interrupts encapsulated,
      *       therefore, this is public.
@@ -174,15 +174,15 @@ private:
     /**
      * If the logic of the button is inverted. Meaning that:
      * isInverted true:
-     *      IOState::LOW = ButtonState::PRESSED and IOState::HIGH = ButtonState::RELEASED 
+     *      IOState::LOW = ButtonState::PRESSED and IOState::HIGH = ButtonState::RELEASED
      */
-    const bool invertedLogic;                              
+    const bool invertedLogic;
     ButtonState state;                              ///< Current state of the button
     void (*stateCallback)(ButtonState) = nullptr;   ///< Function pointer to the state callback
     /**
      * It holds the previous inputPin state. Used by the debounce function
      */
-    IOState previousPinState;                        
+    IOState previousPinState;
     uint16_t debounceCounter = 0;                   ///< Holds the counter for the debounce.
 };
 

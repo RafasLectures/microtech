@@ -1,4 +1,4 @@
-/***************************************************************************//**
+/*****************************************************************************
  * @file                    exercise2.cpp
  * @author                  Rafael Andrioli Bauer
  * @date                    09.11.2022
@@ -9,7 +9,7 @@
  *
  * Description: The initialization of the IOs is performed before main, since
  *              the declaration of the IOs (OutputHandle and Buttons) are outside void main().
- *              
+ *
  *              In the beginning of main(), the system clocks and watchdog are initialized via the
  *              initMSP() call followed by the callback registration of the methods
  *              "listenPB5() and listenPB6()" to the buttons PB5 and PB6 respectively. This means
@@ -20,8 +20,8 @@
  *              initialization.
  *
  *              A periodic task of 5ms is used to trigger the debounce of the buttons. The
- *              debounce logic is performed by the button itself. 
- *              
+ *              debounce logic is performed by the button itself.
+ *
  *              The evaluation of the LEDs state is done by the StateMachine class and it is
  *              triggered only when there is a button state change.
  *
@@ -49,15 +49,14 @@
  * @note    The project was exported using CCS 12.1.0.00007
  ******************************************************************************/
 
-//#define NO_TEMPLATE_UART
+// #define NO_TEMPLATE_UART
 #define polling
 #include <templateEMP.h>
 
-#include "helpers"
+#include "Button.hpp"
 #include "GPIOs.hpp"
 #include "Timer.hpp"
-#include "Button.hpp"
-
+#include "helpers.hpp"
 
 using namespace Microtech;
 
@@ -83,50 +82,50 @@ Button<IOPort::PORT_1, 4> pb6(true);
  */
 class StateMachine {
 public:
-    /**
-     * Method to evaluate the state machine.
-     * Whenever any of the button states change. This function should be called.
-     */
-    void evaluate(){
-        // State of greenLedD5 = PB6 & (PB5 ^ PB6)
-        // State of blueLedD7 = PB6 & !(PB5 ^ PB6)
-        greenLedD5.setState(static_cast<bool>(statePB6) & (static_cast<bool>(statePB5) ^ static_cast<bool>(statePB6)));
-        blueLedD7.setState(static_cast<bool>(statePB6) & !(static_cast<bool>(statePB5) ^ static_cast<bool>(statePB6)));
+  /**
+   * Method to evaluate the state machine.
+   * Whenever any of the button states change. This function should be called.
+   */
+  void evaluate() {
+    // State of greenLedD5 = PB6 & (PB5 ^ PB6)
+    // State of blueLedD7 = PB6 & !(PB5 ^ PB6)
+    greenLedD5.setState(static_cast<bool>(statePB6) & (static_cast<bool>(statePB5) ^ static_cast<bool>(statePB6)));
+    blueLedD7.setState(static_cast<bool>(statePB6) & !(static_cast<bool>(statePB5) ^ static_cast<bool>(statePB6)));
 
-        // Calls method that controls D6 and D9.
-        controlD6AndD9();
+    // Calls method that controls D6 and D9.
+    controlD6AndD9();
+  }
+
+  /**
+   * Method created to fulfill Task 1.b)
+   *
+   * State of redLedD6 = always OFF with exception of 250 ms when PB5 & !PB6
+   * State of yellowLedD9 = !redLedD6
+   */
+  void controlD6AndD9() {
+    // Evaluation of the redLedD6 and yellowLedD9
+    if (statePB5 == ButtonState::PRESSED && statePB6 == ButtonState::RELEASED) {
+      redLedD6.setState(IOState::HIGH);
+      yellowLedD9.setState(IOState::LOW);
+      // Puts count to 0 so timer starts counting
+      countTimeD6On = 0;
+    } else {
+      redLedD6.setState(IOState::LOW);
+      yellowLedD9.setState(IOState::HIGH);
     }
+  }
 
-    /**
-     * Method created to fulfill Task 1.b)
-     *
-     * State of redLedD6 = always OFF with exception of 250 ms when PB5 & !PB6
-     * State of yellowLedD9 = !redLedD6
-     */
-    void controlD6AndD9() {
-        // Evaluation of the redLedD6 and yellowLedD9
-        if(statePB5 == ButtonState::PRESSED && statePB6 == ButtonState::RELEASED) {
-            redLedD6.setState(IOState::HIGH);
-            yellowLedD9.setState(IOState::LOW);
-            // Puts count to 0 so timer starts counting
-            countTimeD6On = 0;
-        } else{
-            redLedD6.setState(IOState::LOW);
-            yellowLedD9.setState(IOState::HIGH);
-        }
-    }
-
-    /**
-     * Flag used by the timer to know if it has to keep the LED OFF or ON.
-     * Since the timer is 5ms, then 50 times would be 250ms.
-     * Initialize more than 250ms (51 times) so the timer doesn't change it.
-     */
-    uint16_t countTimeD6On = 51;
-    ButtonState statePB5 = ButtonState::RELEASED;   ///< Holds the state of the button PB5
-    ButtonState statePB6 = ButtonState::RELEASED;   ///< Holds the state of the button PB6
+  /**
+   * Flag used by the timer to know if it has to keep the LED OFF or ON.
+   * Since the timer is 5ms, then 50 times would be 250ms.
+   * Initialize more than 250ms (51 times) so the timer doesn't change it.
+   */
+  uint16_t countTimeD6On = 51;
+  ButtonState statePB5 = ButtonState::RELEASED;  ///< Holds the state of the button PB5
+  ButtonState statePB6 = ButtonState::RELEASED;  ///< Holds the state of the button PB6
 };
 
-StateMachine stateMachine;      ///< Declaration of the state machine.
+StateMachine stateMachine;  ///< Declaration of the state machine.
 
 /**
  * Method is a callback of the button PB5. So whenever the button changes
@@ -138,9 +137,9 @@ StateMachine stateMachine;      ///< Declaration of the state machine.
  *       to listen to the events, therefore I simply creted this static function.
  *       There must be a better way of doing. For now just did like this so it works
  */
-void listenerPB5(ButtonState newState){
-    stateMachine.statePB5 = newState;
-    stateMachine.evaluate();
+void listenerPB5(ButtonState newState) {
+  stateMachine.statePB5 = newState;
+  stateMachine.evaluate();
 }
 
 /**
@@ -148,11 +147,10 @@ void listenerPB5(ButtonState newState){
  * It has subscribed as a listener in the call pb6.registerStateChangeCallback(&listenerPB6);
  * So this is evaluated only when the button PB6 changes state.
  */
-void listenerPB6(ButtonState newState){
-    stateMachine.statePB6 = newState;
-    stateMachine.evaluate();
+void listenerPB6(ButtonState newState) {
+  stateMachine.statePB6 = newState;
+  stateMachine.evaluate();
 }
-
 
 /**
  * This function is the one that gets called by the timer.
@@ -166,85 +164,85 @@ void listenerPB6(ButtonState newState){
  *
  */
 void pollingTaskCallback() {
-    // Whenever the PB5 has to be evaluated using polling, the performDebounce is called.
+  // Whenever the PB5 has to be evaluated using polling, the performDebounce is called.
 #ifdef polling
-    pb5.performDebounce();
+  pb5.performDebounce();
 #endif
-    pb6.performDebounce();
+  pb6.performDebounce();
 
-    // Verify if the counter of how long D6 is on is less than 50. Since the polling happens every
-    // 5 ms, this function has to be called 250ms/5ms = 50
-    if(stateMachine.countTimeD6On < 50) {
-        stateMachine.countTimeD6On++;      // increment counter value
-    } else{
-        redLedD6.setState(IOState::LOW);
-        yellowLedD9.setState(IOState::HIGH);
-    }
-
+  // Verify if the counter of how long D6 is on is less than 50. Since the polling happens every
+  // 5 ms, this function has to be called 250ms/5ms = 50
+  if (stateMachine.countTimeD6On < 50) {
+    stateMachine.countTimeD6On++;  // increment counter value
+  } else {
+    redLedD6.setState(IOState::LOW);
+    yellowLedD9.setState(IOState::HIGH);
+  }
 }
 
 void main() {
-    initMSP();
-    
-    // Registers static functions as callback of the button instances
-    pb5.registerStateChangeCallback(&listenerPB5);
-    pb6.registerStateChangeCallback(&listenerPB6);
+  initMSP();
 
-    // Initialized buttons
-    pb5.init();
-    pb6.init();
+  // Registers static functions as callback of the button instances
+  pb5.registerStateChangeCallback(&listenerPB5);
+  pb6.registerStateChangeCallback(&listenerPB6);
 
-    // Initialize the timer0
-    timer0.init();
+  // Initialized buttons
+  pb5.init();
+  pb6.init();
 
-    // Creates a 5ms periodic task for polling.
-    TaskHandler<5, std::chrono::milliseconds> pollingTask(&pollingTaskCallback, true);
+  // Initialize the timer0
+  timer0.init();
 
-    // registers polling task to timer 0
-    timer0.registerTask(pollingTask);
-    
-    // If pb5 should not be performed with polling, then we enable the input pin interrupt of the button 
+  // Creates a 5ms periodic task for polling.
+  TaskHandler<5, std::chrono::milliseconds> pollingTask(&pollingTaskCallback, true);
+
+  // registers polling task to timer 0
+  timer0.registerTask(pollingTask);
+
+  // If pb5 should not be performed with polling, then we enable the input pin interrupt of the button
 #ifndef polling
-    pb5.enablePinInterrupt();
+  pb5.enablePinInterrupt();
 #endif
 
-    // globally enables the interrupts.
-    __enable_interrupt(); 
-    while(1) {}  // infinite loop so program doesn't return
+  // globally enables the interrupts.
+  __enable_interrupt();
+  while (1) {
+  }  // infinite loop so program doesn't return
 }
 
 // Not sure how to encapsulate the interruptions yet.
 
-//Timer0 Interruption
+// Timer0 Interruption
 #pragma vector = TIMER0_A0_VECTOR
 __interrupt void Timer_A_CCR0_ISR(void) {
-   timer0.interruptionHappened();
+  timer0.interruptionHappened();
 }
 
 #ifndef polling
 // Port 1 interrupt vector
-# pragma vector = PORT1_VECTOR
-__interrupt void Port_1_ISR ( void ) {
-    // Gets the current edge detection direction
-    // if 1 = HIGH -> LOW;  0 = LOW -> HIGH
-    volatile uint8_t registerVal = getRegisterBits(P1IES, static_cast<uint8_t>(BIT3), static_cast<uint8_t>(3));
-    
-    // Evaluates current button state based on register edge detection value.
-    // The XOR is done because if the edge detection is 1 => HIGH -> LOW; then it means that
-    // the IOState must be LOW, therefore the result of 1 XOR 1 is 0.
-    // If the edge detection is 0 => LOW -> HIGH, then the IOState must be HIGH, so the 
-    // result of 0 XOR 1 is 1.
-    ButtonState pb5CurrentState = pb5.evaluateButtonState((IOState)(registerVal ^ 0x01)); 
+#pragma vector = PORT1_VECTOR
+__interrupt void Port_1_ISR(void) {
+  // Gets the current edge detection direction
+  // if 1 = HIGH -> LOW;  0 = LOW -> HIGH
+  volatile uint8_t registerVal = getRegisterBits(P1IES, static_cast<uint8_t>(BIT3), static_cast<uint8_t>(3));
 
-    // Sets the state of the button based on the button state evaluation.
-    // If the button state is different, internally the button calls its callback which calls
-    // the state machine evaluation.
-    pb5.setState(pb5CurrentState);
-    
-    // toggles direction edge between high/low and low/high so we can catch when the
-    // button go to the other state
-    toggleRegisterBits(P1IES, static_cast<uint8_t>(BIT3));
-    
-    resetRegisterBits(P1IFG, static_cast<uint8_t>(BIT3));  // clear interrupt flag
+  // Evaluates current button state based on register edge detection value.
+  // The XOR is done because if the edge detection is 1 => HIGH -> LOW; then it means that
+  // the IOState must be LOW, therefore the result of 1 XOR 1 is 0.
+  // If the edge detection is 0 => LOW -> HIGH, then the IOState must be HIGH, so the
+  // result of 0 XOR 1 is 1.
+  ButtonState pb5CurrentState = pb5.evaluateButtonState((IOState)(registerVal ^ 0x01));
+
+  // Sets the state of the button based on the button state evaluation.
+  // If the button state is different, internally the button calls its callback which calls
+  // the state machine evaluation.
+  pb5.setState(pb5CurrentState);
+
+  // toggles direction edge between high/low and low/high so we can catch when the
+  // button go to the other state
+  toggleRegisterBits(P1IES, static_cast<uint8_t>(BIT3));
+
+  resetRegisterBits(P1IFG, static_cast<uint8_t>(BIT3));  // clear interrupt flag
 }
 #endif

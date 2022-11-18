@@ -50,6 +50,7 @@ build-*/
 
 # CLion files
 .idea
+custom-compiler.yaml
 
 # CCS Project
 .cproject
