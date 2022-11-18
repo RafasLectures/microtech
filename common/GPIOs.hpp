@@ -46,13 +46,362 @@ enum class IOState {
   HIGH,     ///< The IO is high.
 };
 
+template<IOPort port>
+class GPIORegisters {
+public:
+  constexpr GPIORegisters() {}
+
+  /**
+   * Returns the PxDir register reference.
+   * Since this is a static constexpr function,
+   * the compiler already resolves the internal logic.
+   * There is no extra allocation in program memory
+   *
+   * @returns The reference to the respective PxDir register
+   */
+  constexpr volatile uint8_t& PxDir() {
+    switch (port) {
+      case IOPort::PORT_1: return P1DIR;
+      case IOPort::PORT_2: return P2DIR;
+      default:
+      case IOPort::PORT_3: return P3DIR;
+    }
+  }
+  /**
+   * Returns the PxSel register reference.
+   * Since this is a static constexpr function,
+   * the compiler already resolves the internal logic.
+   * There is no extra allocation in program memory
+   *
+   * @returns The reference to the respective PxSel register
+   */
+  static constexpr volatile uint8_t& PxSel() {
+    switch (port) {
+      case IOPort::PORT_1: return P1SEL;
+      case IOPort::PORT_2: return P2SEL;
+      default:
+      case IOPort::PORT_3: return P3SEL;
+    }
+  }
+  /**
+   * Returns the PxSel2 register reference.
+   * Since this is a static constexpr function,
+   * the compiler already resolves the internal logic.
+   * There is no extra allocation in program memory
+   *
+   * @returns The reference to the respective PxSel2 register
+   */
+  static constexpr volatile uint8_t& PxSel2() {
+    switch (port) {
+      case IOPort::PORT_1: return P1SEL2;
+      case IOPort::PORT_2: return P2SEL2;
+      default:
+      case IOPort::PORT_3: return P3SEL2;
+    }
+  }
+  /**
+   * Returns the PxRen register reference.
+   * Since this is a static constexpr function,
+   * the compiler already resolves the internal logic.
+   * There is no extra allocation in program memory.
+   *
+   * @returns The reference to the respective PxRen register
+   */
+  static constexpr volatile uint8_t& PxRen() {
+    switch (port) {
+      case IOPort::PORT_1: return P1REN;
+      case IOPort::PORT_2: return P2REN;
+      default:
+      case IOPort::PORT_3: return P3REN;
+    }
+  }
+  /**
+   * Returns the PxIn register reference.
+   * Since this is a static constexpr function,
+   * the compiler already resolves the internal logic.
+   * There is no extra allocation in program memory.
+   *
+   * @returns The reference to the respective PxIn register
+   */
+  static constexpr volatile uint8_t& PxIn() {
+    switch (port) {
+      case IOPort::PORT_1: return P1IN;
+      case IOPort::PORT_2: return P2IN;
+      default:
+      case IOPort::PORT_3: return P3IN;
+    }
+  }
+  /**
+   * Returns the PxOut register reference.
+   * Since this is a static constexpr function,
+   * the compiler already resolves the internal logic.
+   * There is no extra allocation in program memory.
+   *
+   * @returns The reference to the respective PxOut register
+   */
+  static constexpr volatile uint8_t& PxOut() noexcept {
+    switch (port) {
+      case IOPort::PORT_1: return P1OUT;
+      case IOPort::PORT_2: return P2OUT;
+      default:
+      case IOPort::PORT_3: return P3OUT;
+    }
+  }
+  /**
+   * Returns the PxIe register reference.
+   * Since this is a static constexpr function,
+   * the compiler already resolves the internal logic.
+   * There is no extra allocation in program memory.
+   *
+   * @returns The reference to the respective PxIe register
+   */
+  static constexpr volatile uint8_t& PxIe() noexcept {
+    switch (port) {
+      case IOPort::PORT_1: return P1IE;
+      case IOPort::PORT_2: return P2IE;
+      default:
+      case IOPort::PORT_3:
+        static_assert(port == IOPort::PORT_1 || port == IOPort::PORT_2, "IOPort 3 does not support interruptions");
+    }
+    return P1IE;  // It will never get here, but there was a warning.
+  }
+  /**
+   * Returns the PxIes register reference.
+   * Since this is a static constexpr function,
+   * the compiler already resolves the internal logic.
+   * There is no extra allocation in program memory.
+   *
+   * @returns The reference to the respective PxIes register
+   */
+  static constexpr volatile uint8_t& PxIes() noexcept {
+    switch (port) {
+      case IOPort::PORT_1: return P1IES;
+      case IOPort::PORT_2: return P2IES;
+      default:
+      case IOPort::PORT_3:
+        static_assert(port == IOPort::PORT_1 || port == IOPort::PORT_2, "IOPort 3 does not support interruptions");
+    }
+    return P1IES;  // It will never get here, but there was a warning.
+  }
+  /**
+   * Returns the PxIfg register reference.
+   * Since this is a static constexpr function,
+   * the compiler already resolves the internal logic.
+   * There is no extra allocation in program memory.
+   *
+   * @returns The reference to the respective PxIfg register
+   */
+  static constexpr volatile uint8_t& PxIfg() noexcept {
+    switch (port) {
+      case IOPort::PORT_1: return P1IFG;
+      case IOPort::PORT_2: return P2IFG;
+      default:
+      case IOPort::PORT_3:
+        static_assert(port == IOPort::PORT_1 || port == IOPort::PORT_2, "IOPort 3 does not support interruptions");
+    }
+    return P1IFG;  // It will never get here, but there was a warning.
+  }
+};
+
+/**
+ * Class serves as a base class and holds the common attributes between
+ * OutputHandle and InputHandle.
+ *
+ * It cannot be constructed by anyone else other then its childs, since the constructor
+ * is protected.
+ *
+ * Since it is declared in the private section within the GPIOs class,
+ * it cannot be "seen" from the outside.
+ *
+ * @tparam Pin The pin of the IOHandle
+ * @tparam bitMask The bit mask of the pin. The default value is 0x01 << Pin
+ */
+class IoHandleBase {
+public:
+  /**
+   * Gets the state of the Pin.
+   *
+   * The compiler tries to already resolve this in compile time.
+   *
+   * @returns The state of the pin. IOState::HIGH or IOState::LOW
+   */
+  constexpr IOState getState() noexcept {
+    // According to MSP430 Manual, PxIn will always be updated with the pins state
+    // regardless if it is configured as an input or output.
+    if (getRegisterBits(PxIn, bitMask, pin)) {
+      return IOState::HIGH;
+    }
+    return IOState::LOW;
+  }
+
+  /**
+   * Method to enable an interrupt at the pin.
+   * At the moment hard-coded to be High/Low edge
+   *
+   * @note it can be improved in the future to take the edge as a parameter.
+   */
+  void enableInterrupt() noexcept {
+    // somehow I need to find a way to wrap the pin interrupt here and
+    // add a callback. But for now we just enable the pin interrupt and
+    // the rest has to be handled from the outside
+    setRegisterBits(PxIe, bitMask);     // Enable interrupt
+    setRegisterBits(PxIes, bitMask);    // High /Low - Edge
+    resetRegisterBits(PxIfg, bitMask);  // Clear interrupt flag
+  }
+
+protected:
+  // Constructor is protected, so it cannot be constructed by anyone else other than its
+  // child
+  template<IOPort port>
+  constexpr IoHandleBase(const uint8_t pin, GPIORegisters<port>& registers)
+    : pin(pin),
+      bitMask(0x01 << pin),
+      PxIn(registers.PxIn()),
+      PxOut(registers.PxOut()),
+      PxDir(registers.PxDir()),
+      PxSel(registers.PxSel()),
+      PxSel2(registers.PxSel2()),
+      PxRen(registers.PxRen()),
+      PxIe(registers.PxIe()),
+      PxIes(registers.PxIes()),
+      PxIfg(registers.PxIfg()) {}
+
+  const uint8_t pin;
+  const uint8_t bitMask;
+
+  volatile uint8_t& PxIn;
+  volatile uint8_t& PxOut;
+  volatile uint8_t& PxDir;
+  volatile uint8_t& PxSel;
+  volatile uint8_t& PxSel2;
+  volatile uint8_t& PxRen;
+  volatile uint8_t& PxIe;
+  volatile uint8_t& PxIes;
+  volatile uint8_t& PxIfg;
+};
+/**
+ * Class is a public interface to use an IO pin.
+ * It serves as a handle to an output pin.
+ * Whenever someone creates the handle, the GPIO pin gets set as an output.
+ * So to use a pin as an output, is very straight forward. One only has to call:
+ *  @code
+ *      GPIOs<IOPort::PORT_1>::OutputHandle<0> p1_0;
+ *      p1_0.setState(IOState::HIGH);
+ *      p1_0.setState(IOState::LOW);
+ *  @endcode
+ *
+ * @tparam Pin Pin in which the handle will be for.
+ * @tparam bitMask The bitMask of the Pin. Doesn't have to be explicitly set.
+ */
+class OutputHandle : public IoHandleBase {
+public:
+  OutputHandle() = delete;
+  /**
+   * Class constructor. It is responsible for setting this IO as an output.
+   *
+   * Since the constructor is constexpr the compiler tries to resolved in compile time
+   */
+  template<IOPort port>
+  constexpr OutputHandle(uint8_t pin, GPIORegisters<port> registers) : IoHandleBase(pin, registers) {
+    setRegisterBits(PxDir, bitMask);
+    resetRegisterBits(PxSel, bitMask);
+    resetRegisterBits(PxSel2, bitMask);
+  }
+
+  /**
+   * Class constructor with the possibility of setting an initial state.
+   *
+   * Since the constructor is constexpr the compiler tries to resolved in compile time
+   *
+   * @param initialState initial state of the output
+   */
+  template<IOPort port>
+  constexpr OutputHandle(uint8_t pin, IOState initialState, GPIORegisters<port> registers) : OutputHandle(pin, registers) {
+    setState(initialState);
+  }
+
+  /**
+   * Overloaded method (see next method) so one can set the pin state using a boolean.
+   * true = IOState::HIGH
+   * false == IOState::LOW
+   *
+   * The compiler tries to already resolve this in compile time.
+   *
+   * @param state Desired pin state.
+   */
+  constexpr void setState(const bool state) noexcept {
+    if (state) {
+      setRegisterBits(PxOut, bitMask);
+    } else {
+      resetRegisterBits(PxOut, bitMask);
+    }
+  }
+  /**
+   * Sets the Pin to an specific state. IOState::HIGH or IOState::LOW
+   *
+   * The compiler tries to already resolve this in compile time.
+   *
+   * @param state Desired pin state.
+   */
+  constexpr void setState(const IOState state) noexcept {
+    // Calls the overloaded method with boolean arguments
+    setState(state == IOState::HIGH);
+  }
+
+  /**
+   * Toggles the Pin. If the pin state is IOState::HIGH it will toggle to IOState::LOW or vice-versa
+   *
+   * The compiler tries to already resolve this in compile time.
+   *
+   */
+  constexpr void toggle() noexcept {
+    toggleRegisterBits(PxOut, bitMask);
+  }
+};
+
+/**
+ * Class is a public interface to use an IO pin.
+ * It serves as a handle to an input pin.
+ * Whenever someone creates the handle, the GPIO pin gets set as an input.
+ * So to use a pin as an input, is very straight forward. One only has to call:
+ *  @code
+ *      GPIOs<IOPort::PORT_1>::InputHandle<0> p1_0;
+ *      IOState stateP1_0 = p1_0.getState();
+ *  @endcode
+ *
+ * @tparam Pin Pin in which the handle will be for.
+ * @tparam bitMask The bitMask of the Pin. Doesn't have to be explicitly set.
+ */
+class InputHandle : public IoHandleBase {
+public:
+  InputHandle() = delete;
+  /**
+   * Class constructor. It is responsible for setting this IO as an input.
+   *
+   * Since the constructor is constexpr the compiler tries to resolved in compile time
+   *
+   * @note At the moment the input is always enabling the internal pull-up resistor.
+   */
+  template<IOPort port>
+  constexpr InputHandle(uint8_t pin, GPIORegisters<port> registers) : IoHandleBase(pin, registers) {
+    resetRegisterBits(PxDir, bitMask);
+    resetRegisterBits(PxSel, bitMask);
+    resetRegisterBits(PxSel2, bitMask);
+    // Enable Pull-Up resistor!
+    setRegisterBits(PxOut, bitMask);
+    setRegisterBits(PxRen, bitMask);
+  }
+
+  // getState method is implemented in the IoHandleBase, since this class inherits from it
+  // also has that functionality
+};
+
 /**
  * This is a actually serves as a namespace to keep some GPIO classes together
  * and hides away some non-public types.
  *
  * @tparam port IOPort of that is handled by the GPIO instance
  */
-template<IOPort port>
 class GPIOs {
 private:
   /**
@@ -75,330 +424,7 @@ private:
    * The port number can be specified as a template parameter.
    *
    */
-  class Registers {
-  public:
-    constexpr Registers() {}
-
-    /**
-     * Returns the PxDir register reference.
-     * Since this is a static constexpr function,
-     * the compiler already resolves the internal logic.
-     * There is no extra allocation in program memory
-     *
-     * @returns The reference to the respective PxDir register
-     */
-    static constexpr volatile uint8_t& PxDir() {
-      switch (port) {
-        case IOPort::PORT_1: return P1DIR;
-        case IOPort::PORT_2: return P2DIR;
-        default:
-        case IOPort::PORT_3: return P3DIR;
-      }
-    }
-    /**
-     * Returns the PxSel register reference.
-     * Since this is a static constexpr function,
-     * the compiler already resolves the internal logic.
-     * There is no extra allocation in program memory
-     *
-     * @returns The reference to the respective PxSel register
-     */
-    static constexpr volatile uint8_t& PxSel() {
-      switch (port) {
-        case IOPort::PORT_1: return P1SEL;
-        case IOPort::PORT_2: return P2SEL;
-        default:
-        case IOPort::PORT_3: return P3SEL;
-      }
-    }
-    /**
-     * Returns the PxSel2 register reference.
-     * Since this is a static constexpr function,
-     * the compiler already resolves the internal logic.
-     * There is no extra allocation in program memory
-     *
-     * @returns The reference to the respective PxSel2 register
-     */
-    static constexpr volatile uint8_t& PxSel2() {
-      switch (port) {
-        case IOPort::PORT_1: return P1SEL2;
-        case IOPort::PORT_2: return P2SEL2;
-        default:
-        case IOPort::PORT_3: return P3SEL2;
-      }
-    }
-    /**
-     * Returns the PxRen register reference.
-     * Since this is a static constexpr function,
-     * the compiler already resolves the internal logic.
-     * There is no extra allocation in program memory.
-     *
-     * @returns The reference to the respective PxRen register
-     */
-    static constexpr volatile uint8_t& PxRen() {
-      switch (port) {
-        case IOPort::PORT_1: return P1REN;
-        case IOPort::PORT_2: return P2REN;
-        default:
-        case IOPort::PORT_3: return P3REN;
-      }
-    }
-    /**
-     * Returns the PxIn register reference.
-     * Since this is a static constexpr function,
-     * the compiler already resolves the internal logic.
-     * There is no extra allocation in program memory.
-     *
-     * @returns The reference to the respective PxIn register
-     */
-    static constexpr volatile uint8_t& PxIn() {
-      switch (port) {
-        case IOPort::PORT_1: return P1IN;
-        case IOPort::PORT_2: return P2IN;
-        default:
-        case IOPort::PORT_3: return P3IN;
-      }
-    }
-    /**
-     * Returns the PxOut register reference.
-     * Since this is a static constexpr function,
-     * the compiler already resolves the internal logic.
-     * There is no extra allocation in program memory.
-     *
-     * @returns The reference to the respective PxOut register
-     */
-    static constexpr volatile uint8_t& PxOut() noexcept {
-      switch (port) {
-        case IOPort::PORT_1: return P1OUT;
-        case IOPort::PORT_2: return P2OUT;
-        default:
-        case IOPort::PORT_3: return P3OUT;
-      }
-    }
-    /**
-     * Returns the PxIe register reference.
-     * Since this is a static constexpr function,
-     * the compiler already resolves the internal logic.
-     * There is no extra allocation in program memory.
-     *
-     * @returns The reference to the respective PxIe register
-     */
-    static constexpr volatile uint8_t& PxIe() noexcept {
-      switch (port) {
-        case IOPort::PORT_1: return P1IE;
-        case IOPort::PORT_2: return P2IE;
-        default:
-        case IOPort::PORT_3:
-          static_assert(port == IOPort::PORT_1 || port == IOPort::PORT_2, "IOPort 3 does not support interruptions");
-      }
-      return P1IE;  // It will never get here, but there was a warning.
-    }
-    /**
-     * Returns the PxIes register reference.
-     * Since this is a static constexpr function,
-     * the compiler already resolves the internal logic.
-     * There is no extra allocation in program memory.
-     *
-     * @returns The reference to the respective PxIes register
-     */
-    static constexpr volatile uint8_t& PxIes() noexcept {
-      switch (port) {
-        case IOPort::PORT_1: return P1IES;
-        case IOPort::PORT_2: return P2IES;
-        default:
-        case IOPort::PORT_3:
-          static_assert(port == IOPort::PORT_1 || port == IOPort::PORT_2, "IOPort 3 does not support interruptions");
-      }
-      return P1IES;  // It will never get here, but there was a warning.
-    }
-    /**
-     * Returns the PxIfg register reference.
-     * Since this is a static constexpr function,
-     * the compiler already resolves the internal logic.
-     * There is no extra allocation in program memory.
-     *
-     * @returns The reference to the respective PxIfg register
-     */
-    static constexpr volatile uint8_t& PxIfg() noexcept {
-      switch (port) {
-        case IOPort::PORT_1: return P1IFG;
-        case IOPort::PORT_2: return P2IFG;
-        default:
-        case IOPort::PORT_3:
-          static_assert(port == IOPort::PORT_1 || port == IOPort::PORT_2, "IOPort 3 does not support interruptions");
-      }
-      return P1IFG;  // It will never get here, but there was a warning.
-    }
-  };
-
-  /**
-   * Class serves as a base class and holds the common attributes between
-   * OutputHandle and InputHandle.
-   *
-   * It cannot be constructed by anyone else other then its childs, since the constructor
-   * is protected.
-   *
-   * Since it is declared in the private section within the GPIOs class,
-   * it cannot be "seen" from the outside.
-   *
-   * @tparam Pin The pin of the IOHandle
-   * @tparam bitMask The bit mask of the pin. The default value is 0x01 << Pin
-   */
-  template<uint8_t Pin, uint8_t bitMask = 0x01 << Pin>
-  class IoHandleBase {
-  public:
-    /**
-     * Gets the state of the Pin.
-     *
-     * The compiler tries to already resolve this in compile time.
-     *
-     * @returns The state of the pin. IOState::HIGH or IOState::LOW
-     */
-    constexpr IOState getState() noexcept {
-      // According to MSP430 Manual, PxIn will always be updated with the pins state
-      // regardless if it is configured as an input or output.
-      if (getRegisterBits(registers.PxIn(), bitMask, Pin)) {
-        return IOState::HIGH;
-      }
-      return IOState::LOW;
-    }
-
-    /**
-     * Method to enable an interrupt at the pin.
-     * At the moment hard-coded to be High/Low edge
-     *
-     * @note it can be improved in the future to take the edge as a parameter.
-     */
-    void enableInterrupt() noexcept {
-      // somehow I need to find a way to wrap the pin interrupt here and
-      // add a callback. But for now we just enable the pin interrupt and
-      // the rest has to be handled from the outside
-      setRegisterBits(registers.PxIe(), bitMask);     // Enable interrupt
-      setRegisterBits(registers.PxIes(), bitMask);    // High /Low - Edge
-      resetRegisterBits(registers.PxIfg(), bitMask);  // Clear interrupt flag
-    }
-
-  protected:
-    // Constructor is protected, so it cannot be constructed by anyone else other than its
-    // child
-    constexpr IoHandleBase() = default;
-  };
-
 public:
-  /**
-   * Class is a public interface to use an IO pin.
-   * It serves as a handle to an output pin.
-   * Whenever someone creates the handle, the GPIO pin gets set as an output.
-   * So to use a pin as an output, is very straight forward. One only has to call:
-   *  @code
-   *      GPIOs<IOPort::PORT_1>::OutputHandle<0> p1_0;
-   *      p1_0.setState(IOState::HIGH);
-   *      p1_0.setState(IOState::LOW);
-   *  @endcode
-   *
-   * @tparam Pin Pin in which the handle will be for.
-   * @tparam bitMask The bitMask of the Pin. Doesn't have to be explicitly set.
-   */
-  template<uint8_t Pin, uint8_t bitMask = 0x01 << Pin>
-  class OutputHandle : public IoHandleBase<Pin> {
-  public:
-    /**
-     * Class constructor. It is responsible for setting this IO as an output.
-     *
-     * Since the constructor is constexpr the compiler tries to resolved in compile time
-     */
-    constexpr OutputHandle() {
-      setRegisterBits(registers.PxDir(), bitMask);
-      resetRegisterBits(registers.PxSel(), bitMask);
-      resetRegisterBits(registers.PxSel2(), bitMask);
-    }
-
-    /**
-     * Class constructor with the possibility of setting an initial state.
-     *
-     * Since the constructor is constexpr the compiler tries to resolved in compile time
-     *
-     * @param initialState initial state of the output
-     */
-    constexpr OutputHandle(IOState initialState) : OutputHandle() {
-      setState(initialState);
-    }
-
-    /**
-     * Overloaded method (see next method) so one can set the pin state using a boolean.
-     * true = IOState::HIGH
-     * false == IOState::LOW
-     *
-     * The compiler tries to already resolve this in compile time.
-     *
-     * @param state Desired pin state.
-     */
-    constexpr void setState(const bool state) noexcept {
-      if (state) {
-        setRegisterBits(registers.PxOut(), bitMask);
-      } else {
-        resetRegisterBits(registers.PxOut(), bitMask);
-      }
-    }
-    /**
-     * Sets the Pin to an specific state. IOState::HIGH or IOState::LOW
-     *
-     * The compiler tries to already resolve this in compile time.
-     *
-     * @param state Desired pin state.
-     */
-    constexpr void setState(const IOState state) noexcept {
-      // Calls the overloaded method with boolean arguments
-      setState(state == IOState::HIGH);
-    }
-
-    /**
-     * Toggles the Pin. If the pin state is IOState::HIGH it will toggle to IOState::LOW or vice-versa
-     *
-     * The compiler tries to already resolve this in compile time.
-     *
-     */
-    constexpr void toggle() noexcept {
-      toggleRegisterBits(registers.PxOut(), IoHandleBase<Pin>::bitMask);
-    }
-  };
-
-  /**
-   * Class is a public interface to use an IO pin.
-   * It serves as a handle to an input pin.
-   * Whenever someone creates the handle, the GPIO pin gets set as an input.
-   * So to use a pin as an input, is very straight forward. One only has to call:
-   *  @code
-   *      GPIOs<IOPort::PORT_1>::InputHandle<0> p1_0;
-   *      IOState stateP1_0 = p1_0.getState();
-   *  @endcode
-   *
-   * @tparam Pin Pin in which the handle will be for.
-   * @tparam bitMask The bitMask of the Pin. Doesn't have to be explicitly set.
-   */
-  template<uint8_t Pin, uint8_t bitMask = 0x01 << Pin>
-  class InputHandle : public IoHandleBase<Pin> {
-  public:
-    /**
-     * Class constructor. It is responsible for setting this IO as an input.
-     *
-     * Since the constructor is constexpr the compiler tries to resolved in compile time
-     *
-     * @note At the moment the input is always enabling the internal pull-up resistor.
-     */
-    constexpr InputHandle() {
-      resetRegisterBits(registers.PxDir(), bitMask);
-      resetRegisterBits(registers.PxSel(), bitMask);
-      resetRegisterBits(registers.PxSel2(), bitMask);
-      // Enable Pull-Up resistor!
-      setRegisterBits(registers.PxOut(), bitMask);
-      setRegisterBits(registers.PxRen(), bitMask);
-    }
-
-    // getState method is implemented in the IoHandleBase, since this class inherits from it
-    // also has that functionality
-  };
-
   /**
    * Constructor of the GPIOs class
    */
@@ -408,12 +434,12 @@ public:
    * Method to initialize the GPIOs and put them in a known state.
    * Usually this will be called only once
    */
-  constexpr void initGpios() noexcept {
-    // Initialize all  outputs of port 1 to 0
-    resetRegisterBits<uint8_t>(registers.PxOut(), static_cast<uint8_t>(0xFF));
-    // Disable all internal resistors of the port
-    resetRegisterBits(registers.PxRen(), static_cast<uint8_t>(0xFF));
-  }
+  //  constexpr void initGpios() noexcept {
+  //    // Initialize all  outputs of port 1 to 0
+  //    resetRegisterBits<uint8_t>(registers.PxOut(), static_cast<uint8_t>(0xFF));
+  //    // Disable all internal resistors of the port
+  //    resetRegisterBits(registers.PxRen(), static_cast<uint8_t>(0xFF));
+  //  }
 
   /**
    * Method to get an OutputHandle. To see the purpose of an OutputHandle, please check its documentation
@@ -421,9 +447,10 @@ public:
    *
    * @note Maybe this willbe deleted. There is no need for this anymore.
    */
-  template<uint8_t Pin>
-  static constexpr OutputHandle<Pin> getOutputHandle() noexcept {
-    return OutputHandle<Pin>();
+  template<IOPort port>
+  static constexpr OutputHandle getOutputHandle(const uint8_t pin) noexcept {
+    // GPIORegisters<port> registers;
+    return OutputHandle(pin, GPIORegisters<port>());
   }
 
   /**
@@ -432,13 +459,10 @@ public:
    *
    * @note Maybe this willbe deleted. There is no need for this anymore.
    */
-  template<uint8_t Pin>
-  static constexpr InputHandle<Pin> getInputHandle() noexcept {
-    return InputHandle<Pin>();
+  template<IOPort port>
+  static constexpr InputHandle getInputHandle() noexcept {
+    return InputHandle(GPIORegisters<port>());
   }
-
-private:
-  static constexpr Registers registers{};  ///< The registers of the port
 };
 
 } /* namespace Microtech */

@@ -30,14 +30,14 @@ public:
     MIRROR_PARALLEL,  ///< The outputs QA~D will output the steady state input A~D
   };
 
-  constexpr ShiftRegisterInterpreter() = default;
+  ShiftRegisterInterpreter() = default;
 
   void setMode(Mode mode);
 
-  void setS0Pin(GPIOs<ioPort>::OutputHandle<>);
+  //void setS0Pin(GPIOs<ioPort>::OutputHandle<>);
 
 private:
-  GPIOs::OutputHandle* s0;
+  OutputHandle* s0;
 };
 
 class ShiftRegisterManager {
