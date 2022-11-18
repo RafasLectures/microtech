@@ -8,8 +8,12 @@ add_library(microtechcommon INTERFACE)
 add_library(Microtech::Common ALIAS microtechcommon)
 
 target_include_directories(microtechcommon INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+if(MSP_COMPILER)
+  target_link_libraries(microtechcommon
+      INTERFACE -llnk_msp430g2553.cmd
+      INTERFACE -llibc.a
+      )
+else()
+  target_link_libraries(microtechcommon INTERFACE msp430Mock)
+endif()
 
-target_link_libraries(microtechcommon
-    INTERFACE -llnk_msp430g2553.cmd
-    INTERFACE -llibc.a
-    )

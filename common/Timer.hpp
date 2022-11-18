@@ -173,7 +173,8 @@ public:
    * @param taskHandler Takes the reference of the taskHandler.
    */
   bool deregisterTask(TaskHandlerBase& taskHandler) {
-    static_assert(false, "Function not yet implemented")
+    //static_assert(false, "Function not yet implemented");
+    return false;
   }
 
   /**

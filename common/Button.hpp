@@ -170,7 +170,7 @@ public:
     }
 
 private:
-    typename GPIOs<port>::InputHandle<Pin> inputPin; ///< Input pin of the button
+    typename GPIOs<port>::template InputHandle<Pin> inputPin; ///< Input pin of the button
     /**
      * If the logic of the button is inverted. Meaning that:
      * isInverted true:

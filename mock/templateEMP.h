@@ -1,0 +1,8 @@
+#ifndef MICROTECH_TEMPLATEEMP_H
+#define MICROTECH_TEMPLATEEMP_H
+
+void initMSP() {
+
+}
+
+#endif  // MICROTECH_TEMPLATEEMP_H

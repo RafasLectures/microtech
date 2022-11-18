@@ -180,7 +180,7 @@ void pollingTaskCallback() {
   }
 }
 
-void main() {
+int main() {
   initMSP();
 
   // Registers static functions as callback of the button instances
@@ -209,6 +209,7 @@ void main() {
   __enable_interrupt();
   while (1) {
   }  // infinite loop so program doesn't return
+  return 0;
 }
 
 // Not sure how to encapsulate the interruptions yet.

@@ -77,7 +77,7 @@ private:
    */
   class Registers {
   public:
-    constexpr Registers(){};
+    constexpr Registers() {}
 
     /**
      * Returns the PxDir register reference.
@@ -257,7 +257,7 @@ private:
     constexpr IOState getState() noexcept {
       // According to MSP430 Manual, PxIn will always be updated with the pins state
       // regardless if it is configured as an input or output.
-      if (getRegisterBits(registers.PxIn(), bitMask, static_cast<uint8_t>(0))) {
+      if (getRegisterBits(registers.PxIn(), bitMask, Pin)) {
         return IOState::HIGH;
       }
       return IOState::LOW;
@@ -279,7 +279,7 @@ private:
     }
 
   protected:
-    // Constructor is protected so it cannot be constructed by anyone else other than its
+    // Constructor is protected, so it cannot be constructed by anyone else other than its
     // child
     constexpr IoHandleBase() = default;
   };
@@ -333,7 +333,7 @@ public:
      *
      * @param state Desired pin state.
      */
-    constexpr void setState(bool state) {
+    constexpr void setState(const bool state) noexcept {
       if (state) {
         setRegisterBits(registers.PxOut(), bitMask);
       } else {
@@ -347,7 +347,7 @@ public:
      *
      * @param state Desired pin state.
      */
-    constexpr void setState(IOState state) {
+    constexpr void setState(const IOState state) noexcept {
       // Calls the overloaded method with boolean arguments
       setState(state == IOState::HIGH);
     }
@@ -358,7 +358,7 @@ public:
      * The compiler tries to already resolve this in compile time.
      *
      */
-    constexpr void toggle() {
+    constexpr void toggle() noexcept {
       toggleRegisterBits(registers.PxOut(), IoHandleBase<Pin>::bitMask);
     }
   };
@@ -396,20 +396,19 @@ public:
     }
 
     // getState method is implemented in the IoHandleBase, since this class inherits from it
-    // it also has that functionality
+    // also has that functionality
   };
 
   /**
    * Constructor of the GPIOs class
    */
-  constexpr GPIOs(){};
+  constexpr GPIOs() {}
 
   /**
    * Method to initialize the GPIOs and put them in a known state.
    * Usually this will be called only once
    */
   constexpr void initGpios() noexcept {
-    constexpr Registers<IOPort::PORT_1> registers;
     // Initialize all  outputs of port 1 to 0
     resetRegisterBits<uint8_t>(registers.PxOut(), static_cast<uint8_t>(0xFF));
     // Disable all internal resistors of the port

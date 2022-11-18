@@ -32,3 +32,15 @@
  *
  * @note    The project was exported using CCS 12.1.0.00007
  ******************************************************************************/
+
+#include "GPIOs.hpp"
+#include "ShiftRegister.hpp"
+
+using namespace Microtech;
+int main() {
+  OutputHandle s0Reg2 = GPIOs::getOutputHandle<IOPort::PORT_1>(0);
+
+  s0Reg2.setState(IOState::HIGH);
+
+  return 0;
+}
