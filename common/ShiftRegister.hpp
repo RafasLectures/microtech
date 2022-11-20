@@ -21,7 +21,7 @@
 #include "GPIOs.hpp"
 namespace Microtech {
 
-class ShiftRegisterInterpreter {
+class ShiftRegisterBase {
 public:
   enum class Mode {
     PAUSE = 0,        ///< The shift register stops to change the output regardless of the clock
@@ -30,19 +30,39 @@ public:
     MIRROR_PARALLEL,  ///< The outputs QA~D will output the steady state input A~D
   };
 
-  ShiftRegisterInterpreter() = default;
+  constexpr ShiftRegisterBase(const OutputHandle& s0Handle, const OutputHandle& s1Handle, const OutputHandle* const shiftRightHandle) :
+          s0(s0Handle), s1(s1Handle), shiftRight(shiftRightHandle) {}
 
-  void setMode(Mode mode);
+  constexpr ShiftRegisterBase(const OutputHandle& s0Handle, const OutputHandle& s1Handle, const InputHandle* const inputQDtHandle) :
+            s0(s0Handle), s1(s1Handle), inputQD(inputQDtHandle) {}
 
-  //void setS0Pin(GPIOs<ioPort>::OutputHandle<>);
+  void init() const noexcept;
+  void setMode(const Mode mode) const noexcept;
+
+  void outputAStateRightShift(const IOState state) const noexcept;
+
+  IOState getInputQDState() const noexcept;
 
 private:
-  OutputHandle* s0;
+  const OutputHandle s0;
+  const OutputHandle s1;
+  const OutputHandle* const shiftRight = nullptr;
+  const InputHandle* const inputQD = nullptr;
 };
 
-class ShiftRegisterManager {
+class ShiftRegisterController {
 public:
+    constexpr ShiftRegisterController(const OutputHandle& clockHandle, const OutputHandle& clearHandle) : clock(clockHandle), clear(clearHandle) {}
 
+    void init() const noexcept;
+    void start() const noexcept;
+    void stop() const noexcept;
+    void reset() const noexcept;
+
+    void clockOneCycle() const noexcept;
+private:
+    const OutputHandle clock;
+    const OutputHandle clear;
 };
 } /* namespace Microtech */
 

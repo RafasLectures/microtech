@@ -41,7 +41,7 @@ enum class ButtonState {
  * the button and let someone set the pin with a function.
  *
  */
-template <IOPort port, uint8_t Pin>
+template <typename INPUT_TYPE>
 class Button {
 public:
     /**
@@ -50,7 +50,7 @@ public:
      * 0 = ButtonState::PRESSED
      * 1 = ButtonState::RELEASED
      */
-    constexpr Button(bool invertedLogic) : inputPin(), invertedLogic(invertedLogic) {}
+    constexpr Button(const INPUT_TYPE& input, bool invertedLogic) : inputPin(), invertedLogic(invertedLogic) {}
 
     /**
      * Initialize the button. Gets state of the input pin and sets it as its state.
@@ -68,41 +68,12 @@ public:
     }
 
     /**
-     * Method to set the state of the button. Whenever a new state is set
-     * it is also responsible for calling the button's callback
-     *
-     * @param newState The new state of the button
-     *
-     * @note In theory this method should be private, but for now
-     *       I could not find a way to have the interrupts encapsulated,
-     *       therefore, this is public.
-     */
-    void setState(ButtonState newState) noexcept {
-        // If the newState is the same, there is no need to do
-        // anything.
-        if(state == newState) {
-            return;
-        }
-        state = newState;
-
-        // Make sure the callback pointer is not null before
-        // calling it so there is no invalid memory access
-        if(stateCallback != nullptr) {
-            stateCallback(state);   // calls the state callback
-        }
-    }
-
-    /**
      * Method to perform the button debounce
      * Usually this is will be a function called by another periodic function
      * to constantly perform the pulling of the button state and then perform
      * debounce.
      */
     void performDebounce() noexcept {
-        // The numbers of time the pin has to be in the same state in order
-        // for the button to change state
-        static const uint16_t DEBOUNCE_MAX = 5;
-
         // Polls current state from the inputPin
         const IOState currentPinState = inputPin.getState();
 
@@ -141,7 +112,31 @@ public:
         stateCallback = callbackPtr;
     }
 
+private:
+    /**
+     * Method to set the state of the button. Whenever a new state is set
+     * it is also responsible for calling the button's callback
+     *
+     * @param newState The new state of the button
+     *
+     * @note In theory this method should be private, but for now
+     *       I could not find a way to have the interrupts encapsulated,
+     *       therefore, this is public.
+     */
+    void setState(ButtonState newState) noexcept {
+        // If the newState is the same, there is no need to do
+        // anything.
+        if(state == newState) {
+            return;
+        }
+        state = newState;
 
+        // Make sure the callback pointer is not null before
+        // calling it so there is no invalid memory access
+        if(stateCallback != nullptr) {
+            stateCallback(state);   // calls the state callback
+        }
+    }
     /**
      * Method to set the state of the button. Whenever a new state is set
      * it is also responsible for calling the button's callback
@@ -153,7 +148,7 @@ public:
      *       I could not find a way to have the interrupts encapsulated,
      *       therefore, this is public.
      */
-    ButtonState evaluateButtonState(const IOState pinState) noexcept {
+    constexpr ButtonState evaluateButtonState(const IOState pinState) noexcept {
         if(invertedLogic) {
             switch(pinState) {
             case IOState::LOW: return ButtonState::PRESSED;
@@ -169,8 +164,7 @@ public:
         }
     }
 
-private:
-    typename GPIOs<port>::template InputHandle<Pin> inputPin; ///< Input pin of the button
+    const INPUT_TYPE& inputPin; ///< Input pin of the button
     /**
      * If the logic of the button is inverted. Meaning that:
      * isInverted true:
@@ -184,6 +178,7 @@ private:
      */
     IOState previousPinState;
     uint16_t debounceCounter = 0;                   ///< Holds the counter for the debounce.
+    const uint16_t DEBOUNCE_MAX = 5;                ///< The numbers of time the pin has to be in the same state in order for the button to change state
 };
 
 } /* namespace Microtech */
