@@ -106,3 +106,4 @@ link_directories(
 )
 
 set(MSP_COMPILER 1)
+# definition __MSP430G2553__

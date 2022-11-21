@@ -75,7 +75,7 @@ void ShiftRegisterController::clockOneCycle() const noexcept {
     clock.setState(IOState::HIGH);
     // According to datasheet it takes approximately 6ns for the clock to stabilize.
     // In theory there is no need for a delay
-    //__delay_cycles(12);
+    //__delay_cycles(100);
     clock.setState(IOState::LOW);
 }
 }

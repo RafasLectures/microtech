@@ -392,8 +392,8 @@ public:
       resetRegisterBits(PxSel, mBitMask);
       resetRegisterBits(PxSel2, mBitMask);
       // Enable Pull-Up resistor!
-      setRegisterBits(PxOut, mBitMask);
-      setRegisterBits(PxRen, mBitMask);
+      resetRegisterBits(PxOut, mBitMask);
+      resetRegisterBits(PxRen, mBitMask);
   }
   // getState method is implemented in the IoHandleBase, since this class inherits from it
   // also has that functionality
