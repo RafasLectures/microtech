@@ -4,7 +4,7 @@ file(GLOB_RECURSE SOURCES
     ./*.cpp
     )
 
-add_library(microtechcommon INTERFACE)
+add_library(microtechcommon STATIC ${SOURCES})
 add_library(Microtech::Common ALIAS microtechcommon)
 
 target_include_directories(microtechcommon INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -14,6 +14,6 @@ if(MSP_COMPILER)
       INTERFACE -llibc.a
       )
 else()
-  target_link_libraries(microtechcommon INTERFACE msp430Mock)
+  target_link_libraries(microtechcommon PUBLIC msp430Mock)
 endif()
 

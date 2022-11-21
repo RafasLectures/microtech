@@ -104,6 +104,12 @@ link_directories(
     ${CGT_TOOLCHAIN_DIR}/lib
     ${CCS_BASE_MSP430}/include # Local where default .cmd files are
 )
+#-g
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -vmsp --use_hw_mpy=none --advice:power='all' -g --printf_support=minimal --diag_warning=225 --diag_wrap=off --display_error_number --preproc_with_compile")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -vmsp --use_hw_mpy=none --advice:power='all' -g --printf_support=minimal --diag_warning=225 --diag_wrap=off --display_error_number --preproc_with_compile")
 
 set(MSP_COMPILER 1)
-# definition __MSP430G2553__
+add_definitions(-D__MSP430G2553__)
+# definition
+
+#-vmsp --use_hw_mpy=none --advice:power="all" --define=__MSP430G2553__ -g --printf_support=minimal --diag_warning=225 --diag_wrap=off --display_error_number -z -m"Exercise_2_AndrioliBauer.map" --heap_size=80 --stack_size=80 -i"/Applications/ti/ccs1200/ccs/ccs_base/msp430/include" -i"/Applications/ti/ccs1200/ccs/tools/compiler/ti-cgt-msp430_21.6.1.LTS/lib" -i"/Applications/ti/ccs1200/ccs/tools/compiler/ti-cgt-msp430_21.6.1.LTS/include" --reread_libs --diag_wrap=off --display_error_number --warn_sections --xml_link_info="Exercise_2_AndrioliBauer_linkInfo.xml" --use_hw_mpy=none --rom_model -o "Exercise_2_AndrioliBauer.out" "./common/ShiftRegister.obj" "./exercise3/exercise3.obj" "../lnk_msp430g2553.cmd"  -llibc.a
