@@ -1,13 +1,10 @@
-It was straight forward. 
+It was very straight forward. I had no problems while solving the exercise apart from being ill for a week.
 
-I created the GPIO and Timer headers so in the future I don't need to worry about
-the whole IO setup and Timer counter calculations. It would be faster to do the next exercises, I think.
+I hope the state transition is correct. I did it as it is in the exercise.
 
-I struggled in one point where I want to have the interruptions and callback functions encapsulated within the object "managing" a resource
-(like GPIO or Timer). The way it is done now seems a little like a hack to me. I hope
-I come up with a better way of doing in the near future.
+Initial state: all LEDs off <-- never goes back here.
 
-Some ideas for the future is to have a googletest setup where you could have your own msp430g2553 header mocking the real implementation.
-We could then write our software and test in our machine to make sure we are setting the correct registers approapriately. 
-Also we could have a GitHub classroom with an action that would basically run those tests. It would also give an impression to the students
-about git, and Continuous integration pipeline.
+State 1
+State 2
+State 3
+State 4

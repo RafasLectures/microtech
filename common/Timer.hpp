@@ -26,6 +26,7 @@
 #include <msp430g2553.h>
 #include <array>
 #include <chrono>
+#include <functional>
 #include <cstdint>
 
 namespace Microtech {
@@ -41,14 +42,15 @@ namespace Microtech {
  */
 class TaskHandlerBase {
 public:
-  typedef void (*Callback)();  ///< Type definition of callback
+  using CallbackFunction = std::function<void()>;
+  //typedef void (*CallbackFunction)();  ///< Type definition of callback
 
   /**
    * Class constructor.
    * @param callback function pointer to task callback
    * @param isPeriodic To inform weather this is a one-time callback (non periodic) or it is periodic.
    */
-  constexpr TaskHandlerBase(Callback callback, bool isPeriodic) : taskCallback(callback), isPeriodic(isPeriodic) {}
+  TaskHandlerBase(CallbackFunction callback, bool isPeriodic) : taskCallback(callback), isPeriodic(isPeriodic) {}
 
   /**
    * Function intended to be called by the timer interrupt and it basically calls the callback.
@@ -62,7 +64,7 @@ public:
   }
 
 private:
-  const Callback taskCallback = nullptr;  ///< Callback pointer. Initially null, but can be set on constructor
+  const CallbackFunction taskCallback = nullptr;  ///< Callback pointer. Initially null, but can be set on constructor
   const bool isPeriodic;                  ///< Stores if the task is periodic or not
 };
 
@@ -82,13 +84,15 @@ private:
 template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
 class TaskHandler : public TaskHandlerBase {
 public:
+    //typedef void (*CallbackFunction)();
+
   /**
    * Constructor of TaskHandler.
    *
    * @param callback function pointer to task callback
    * @param isPeriodic To inform weather this is a one-time callback (non periodic) or it is periodic.
    */
-  constexpr TaskHandler(void (*callback)(), bool isPeriodic) : TaskHandlerBase(callback, isPeriodic) {}
+  TaskHandler(CallbackFunction callback, bool isPeriodic) : TaskHandlerBase(callback, isPeriodic) {}
 };
 
 /**

@@ -46,9 +46,27 @@ enum class IOState {
   HIGH,     ///< The IO is high.
 };
 
-
+/**
+ * Helper class to return the references of the
+ * GPIO registers.
+ * Since the name always follows a pattern, such as
+ * "PxDIR" where "x" would be replaced by the port number, this was
+ * created, so one can retrieve the correct port
+ * register references only by calling the respective
+ * method.
+ *
+ * This class also helps to prevent bugs from being introduced, since
+ * one simply declares the constexpr object and then uses the "Px" register
+ * methods. This way, one doesn't forget to swap one value when doing
+ * a change.
+ *
+ * Since it is declared in the private section within the GPIOs class,
+ * it cannot be "seen" from the outside.
+ *
+ */
 class GPIORegisters {
-public:
+    friend class IoHandleBase;
+protected:
 
     constexpr GPIORegisters()  {}
 
@@ -216,8 +234,6 @@ public:
  * Since it is declared in the private section within the GPIOs class,
  * it cannot be "seen" from the outside.
  *
- * @tparam Pin The pin of the IOHandle
- * @tparam bitMask The bit mask of the pin. The default value is 0x01 << Pin
  */
 class IoHandleBase {
 public:
@@ -269,8 +285,8 @@ protected:
           PxIes(GPIORegisters::getPxIes(port)),
           PxIfg(GPIORegisters::getPxIfg(port)){}
 
-  const uint8_t mPin;
-  const uint8_t mBitMask;
+  const uint8_t mPin;               ///< Pin of the IO
+  const uint8_t mBitMask;           ///< Mask of the IO used to manipulate the registers
 
   RegisterRef PxIn;
   RegisterRef PxOut;
@@ -288,24 +304,25 @@ protected:
  * Whenever someone creates the handle, the GPIO pin gets set as an output.
  * So to use a pin as an output, is very straight forward. One only has to call:
  *  @code
- *      GPIOs<IOPort::PORT_1>::OutputHandle<0> p1_0;
+ *      OutputHandle p1_0 = GPIOs:getOutputHandle<IOPort::PORT_1, 0>;
+ *      p1_0.init();
  *      p1_0.setState(IOState::HIGH);
  *      p1_0.setState(IOState::LOW);
  *  @endcode
- *
- * @tparam Pin Pin in which the handle will be for.
- * @tparam bitMask The bitMask of the Pin. Doesn't have to be explicitly set.
  */
 class OutputHandle : public IoHandleBase {
 public:
     OutputHandle() = delete;
   /**
-   * Class constructor. It is responsible for setting this IO as an output.
+   * Class constructor.
    *
    * Since the constructor is constexpr the compiler tries to resolved in compile time
    */
   explicit constexpr OutputHandle(IOPort port, uint8_t desiredPin) : IoHandleBase(port, desiredPin) {}
 
+  /**
+   * Method initializes the pin. It sets the pin as an output.
+   */
   constexpr void init() const{
       setRegisterBits(PxDir, mBitMask);
       resetRegisterBits(PxSel, mBitMask);
@@ -368,30 +385,33 @@ public:
  * Whenever someone creates the handle, the GPIO pin gets set as an input.
  * So to use a pin as an input, is very straight forward. One only has to call:
  *  @code
- *      GPIOs<IOPort::PORT_1>::InputHandle<0> p1_0;
+ *      InputHandle GPIOs::GPIOs::getOutputHandle<IOPort::PORT_1,0> p1_0;
+ *      p1_0.init();
+ *
  *      IOState stateP1_0 = p1_0.getState();
  *  @endcode
  *
- * @tparam Pin Pin in which the handle will be for.
- * @tparam bitMask The bitMask of the Pin. Doesn't have to be explicitly set.
  */
 class InputHandle : public IoHandleBase {
 public:
     using State = IOState;
   /**
-   * Class constructor. It is responsible for setting this IO as an input.
+   * Class constructor.
    *
    * Since the constructor is constexpr the compiler tries to resolved in compile time
    *
-   * @note At the moment the input is always enabling the internal pull-up resistor.
    */
   constexpr InputHandle(IOPort port, uint8_t desiredPin) : IoHandleBase(port, desiredPin) { }
 
+  /**
+   * Method initializes the pin. It sets the pin as an input.
+   * @note At the moment the input is always disabling the internal resistor.
+   */
   constexpr void init() const {
       resetRegisterBits(PxDir, mBitMask);
       resetRegisterBits(PxSel, mBitMask);
       resetRegisterBits(PxSel2, mBitMask);
-      // Enable Pull-Up resistor!
+      // Disable Pull-Up resistor!
       resetRegisterBits(PxOut, mBitMask);
       resetRegisterBits(PxRen, mBitMask);
   }
@@ -406,26 +426,7 @@ public:
  * @tparam port IOPort of that is handled by the GPIO instance
  */
 class GPIOs {
-  /**
-   * Helper class to return the references of the
-   * GPIO registers.
-   * Since the name always follows a pattern, such as
-   * "PxDIR" where "x" would be replaced by the port number, this was
-   * created, so one can retrieve the correct port
-   * register references only by calling the respective
-   * method.
-   *
-   * This class also helps to prevent bugs from being introduced, since
-   * one simply declares the constexpr object and then uses the "Px" register
-   * methods. This way, one doesn't forget to swap one value when doing
-   * a change.
-   *
-   * Since it is declared in the private section within the GPIOs class,
-   * it cannot be "seen" from the outside.
-   *
-   * The port number can be specified as a template parameter.
-   *
-   */
+
 public:
     /**
    * Constructor of the GPIOs class
@@ -446,10 +447,8 @@ public:
   /**
    * Method to get an OutputHandle. To see the purpose of an OutputHandle, please check its documentation
    * above.
-   *
-   * @note Maybe this willbe deleted. There is no need for this anymore.
    */
-      template<IOPort port, uint8_t desiredPin>
+  template<IOPort port, uint8_t desiredPin>
   static constexpr OutputHandle getOutputHandle() noexcept {
       constexpr OutputHandle handle = OutputHandle(port, desiredPin);
       return handle;
@@ -458,8 +457,6 @@ public:
   /**
    * Method to get an InputHandle. To see the purpose of an InputHandle, please check its documentation
    * above.
-   *
-   * @note Maybe this willbe deleted. There is no need for this anymore.
    */
   template<IOPort port, uint8_t desiredPin>
   static constexpr InputHandle getInputHandle() noexcept {

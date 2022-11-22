@@ -26,43 +26,23 @@ void ShiftRegisterBase::setMode(const Mode mode) const noexcept {
 void ShiftRegisterBase::init() const noexcept {
     s0.init();
     s1.init();
-    s0.setState(IOState::LOW);
-    s1.setState(IOState::LOW);
-
-    if(shiftRight != nullptr) {
-        shiftRight->init();
-        shiftRight->setState(IOState::LOW);
-    }
-
-    if (inputQD != nullptr) {
-        inputQD->init();
-    }
-}
-void ShiftRegisterBase::outputAStateRightShift(const IOState state) const noexcept {
-    if(shiftRight != nullptr) {
-        shiftRight->setState(state);
-    }
+    setMode(Mode::PAUSE);
 }
 
-IOState ShiftRegisterBase::getInputQDState() const noexcept {
-    if (inputQD != nullptr) {
-        return inputQD->getState();
-    }
-    return IOState::LOW;
-}
+// Shift register controller
 
 void ShiftRegisterController::init() const noexcept {
     clock.init();
     clear.init();
     clock.setState(IOState::LOW);
-    clear.setState(IOState::LOW);
+    stopAndReset();
 }
 
 void ShiftRegisterController::start() const noexcept {
     clear.setState(IOState::HIGH);
 }
 
-void ShiftRegisterController::stop() const noexcept {
+void ShiftRegisterController::stopAndReset() const noexcept {
     clear.setState(IOState::LOW);
 }
 
@@ -74,8 +54,9 @@ void ShiftRegisterController::reset() const noexcept {
 void ShiftRegisterController::clockOneCycle() const noexcept {
     clock.setState(IOState::HIGH);
     // According to datasheet it takes approximately 6ns for the clock to stabilize.
-    // In theory there is no need for a delay
-    //__delay_cycles(100);
+    // In theory there is no need for a delay, since the microcontroller clock is 1us
+    //__delay_cycles(10);
     clock.setState(IOState::LOW);
 }
+
 }
