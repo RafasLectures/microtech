@@ -42,8 +42,8 @@ namespace Microtech {
  */
 class TaskHandlerBase {
 public:
-  using CallbackFunction = std::function<void()>;
-  //typedef void (*CallbackFunction)();  ///< Type definition of callback
+  //using CallbackFunction = std::function<void()>;
+  typedef void (*CallbackFunction)();  ///< Type definition of callback
 
   /**
    * Class constructor.

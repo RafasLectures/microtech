@@ -342,8 +342,19 @@ private:
 
     static const uint8_t MAX_NUM_LED_STATES = 4;                ///< Constant of how many LED states there are
     static const uint8_t MAX_NUM_PBs = 4;                       ///< Constant of how many PBs states there are
-    static const uint8_t CLK_TICKS_4_STATES_PER_SECOND = 50;    ///< Constant of how clock ticks are necessary to have the rate of 4 LED states per second
-    static const uint8_t CLK_TICKS_8_STATES_PER_SECOND = 25;    ///< Constant of how clock ticks are necessary to have the rate of 8 LED states per second
+
+    /**
+     * Constant of how clock ticks are necessary to have the rate of 4 LED states per second
+     * To go 4 states per second it is 250ms per state. The Timer is 5ms so 250/5 = 50. We should
+     * subtract 1 since the counter starts on 0, so 50-1= 49.
+     */
+    static const uint8_t CLK_TICKS_4_STATES_PER_SECOND = 49;
+    /**
+     * Constant of how clock ticks are necessary to have the rate of 8 LED states per second
+     * To go 8 states per second it is 125ms per state. The Timer is 5ms so 125/5 = 25. We should
+     * subtract 1 since the counter starts on 0, so 25-1=24.
+     */
+    static const uint8_t CLK_TICKS_8_STATES_PER_SECOND = 24;
 
 
     const ShiftRegisterController shiftRegisterController;      ///< Instance that controls the shift registers clk and clear.
@@ -363,38 +374,39 @@ private:
     uint8_t clockTickCount = 0;                                          ///< Counter of how many clock ticks have already happened.
 };
 
+
+constexpr ShiftRegisterLED shiftRegisterLEDs(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(0)>(),
+                                    GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(1)>(),
+                                    GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(6)>());
+
+constexpr ShiftRegisterPB shiftRegisterPBs(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(2)>(),
+                                   GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(3)>(),
+                                   GPIOs::getInputHandle<IOPort::PORT_2, static_cast<uint8_t>(7)>());
+
+constexpr ShiftRegisterController shiftRegisterController(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(4)>(),
+                                                          GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(5)>());
+
+// Creates exercise logic instance and passes the shift register objects
+ExerciseLogic exerciseLogic(shiftRegisterController, shiftRegisterLEDs, shiftRegisterPBs);
+
 // Declared Timer0 Abstraction with CLK_DIV of 8
 Timer<8> timer0;
 
-//void clkTaskShiftRegisters() {
-//    exerciseLogic.performEvaluation();
-//}
+void clkTaskShiftRegisters() {
+    exerciseLogic.performEvaluation();
+}
 
 int main() {
   initMSP();
 
   timer0.init();
 
-  constexpr ShiftRegisterLED shiftRegisterLEDs(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(0)>(),
-                                      GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(1)>(),
-                                      GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(6)>());
-
-  constexpr ShiftRegisterPB shiftRegisterPBs(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(2)>(),
-                                     GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(3)>(),
-                                     GPIOs::getInputHandle<IOPort::PORT_2, static_cast<uint8_t>(7)>());
-
-  constexpr ShiftRegisterController shiftRegisterController(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(4)>(),
-                                                            GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(5)>());
-
-  // Creates exercise logic instance and passes the shift register objects
-  ExerciseLogic exerciseLogic(shiftRegisterController, shiftRegisterLEDs, shiftRegisterPBs);
-
   exerciseLogic.init();
 
   shiftRegisterController.start();
 
   // Creates a 5ms periodic task for performing the exercise logic.
-  TaskHandler<5, std::chrono::milliseconds> clkTask(std::bind(&ExerciseLogic::performEvaluation, exerciseLogic), true);
+  TaskHandler<5, std::chrono::milliseconds> clkTask(&clkTaskShiftRegisters, true);
 
   // registers exercise logic task to timer 0
   timer0.registerTask(clkTask);
