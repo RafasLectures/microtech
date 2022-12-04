@@ -24,34 +24,30 @@ void ShiftRegisterBase::setMode(const Mode mode) const noexcept {
 }
 
 void ShiftRegisterBase::init() const noexcept {
+    clock.init();
+    clear.init();
+    clock.setState(IOState::LOW);
+    stopAndReset();
+
     s0.init();
     s1.init();
     setMode(Mode::PAUSE);
 }
 
-// Shift register controller
-
-void ShiftRegisterController::init() const noexcept {
-    clock.init();
-    clear.init();
-    clock.setState(IOState::LOW);
-    stopAndReset();
-}
-
-void ShiftRegisterController::start() const noexcept {
+void ShiftRegisterBase::start() const noexcept {
     clear.setState(IOState::HIGH);
 }
 
-void ShiftRegisterController::stopAndReset() const noexcept {
+void ShiftRegisterBase::stopAndReset() const noexcept {
     clear.setState(IOState::LOW);
 }
 
-void ShiftRegisterController::reset() const noexcept {
+void ShiftRegisterBase::reset() const noexcept {
     clear.setState(IOState::LOW);
     clear.setState(IOState::HIGH);
 }
 
-void ShiftRegisterController::clockOneCycle() const noexcept {
+void ShiftRegisterBase::clockOneCycle() const noexcept {
     clock.setState(IOState::HIGH);
     // According to datasheet it takes approximately 6ns for the clock to stabilize.
     // In theory there is no need for a delay, since the microcontroller clock is 1us
