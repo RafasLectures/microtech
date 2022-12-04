@@ -36,7 +36,7 @@
  *         [x] Detect another color               (x/1.0 pt.)
  *
  *  Task 2
- *         [ ] feedback.txt                       (x/1.0 pt.)
+ *         [x] feedback.txt                       (x/1.0 pt.)
  *
  * @note    The project was exported using CCS 12.1.0.00007
  ******************************************************************************/

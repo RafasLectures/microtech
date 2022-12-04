@@ -5,5 +5,3 @@ of the ADC channels were read and written in to the desired addresses, but appar
 I thought that because I configured the AD to be "Repeat sequence-of-channels", but it didn't work... If you know how to make it I would be glad to learn.
 
 I liked to use the DTC, since it requires no CPU to put the conversion to the "meaninful" memory addresses.
-
-I had no problems while solving the exercise apart from being ill for a week.
