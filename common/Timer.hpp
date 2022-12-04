@@ -99,12 +99,16 @@ public:
  * Timer class is responsible for managing the timer of MSP430.
  *
  */
-template<int64_t CLK_DIV>
+template<uint8_t TIMER_NUMBER, int64_t CLK_DIV>
 class Timer {
 public:
   Timer() = default;
   ~Timer() = default;
 
+  static Timer<TIMER_NUMBER, CLK_DIV>& getTimer() {
+    static Timer<TIMER_NUMBER, CLK_DIV> timer;
+    return timer;
+  }
   /**
    * Method to initialize the timer. The CLK_DIV is at the moment a template parameter
    * the timer class.
@@ -113,10 +117,10 @@ public:
    * in the near future.
    */
   constexpr void init() {
-    constexpr uint16_t timerInputDivider = getTimerInputDivider();
+    constexpr uint16_t TIMER_INPUT_DIVIDER = getTimerInputDivider();
     // Choose SMCLK as clock source
     // Counting in Up Mode
-    TACTL = TASSEL_2 + timerInputDivider + MC_0;
+    TACTL = TASSEL_2 + TIMER_INPUT_DIVIDER + MC_0;
   }
   /**
    * Method to register a task to the timer. It will enable the interrupt of timer 0,
@@ -153,7 +157,7 @@ public:
   template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
   constexpr void registerTask(TaskHandler<periodValue, Duration>& task) {
     // Gets the timer0 compare value
-    constexpr uint16_t compareValue = calculateCompareValue<periodValue, Duration>();
+    constexpr uint16_t COMPARE_VALUE = calculateCompareValue<periodValue, Duration>();
 
     // For now only one task. This is work in progress.
     // Task is added to taskHandlers array
@@ -166,7 +170,7 @@ public:
      * MOV.W   #0xf423,&Timer0_A3_TA0CCR0. Where #0xf423 is the value coming from compareValue evaluated in compile time
      * which is correct: (500000/8)-1 = 62499 = 0xF423.
      */
-    TACCR0 = compareValue;
+    TACCR0 = COMPARE_VALUE;
     // Enable interrupt for CCR0.
     TACCTL0 |= CCIE;
     setRegisterBits(TACTL, static_cast<uint16_t>(MC_1));
@@ -176,7 +180,7 @@ public:
    * Method to deregister a task. But not yet implemented
    * @param taskHandler Takes the reference of the taskHandler.
    */
-  bool deregisterTask(TaskHandlerBase& taskHandler) {
+  bool deregisterTask(TaskHandlerBase& /*taskHandler*/) {
     //static_assert(false, "Function not yet implemented");
     return false;
   }
@@ -224,21 +228,21 @@ private:
   static constexpr uint16_t calculateCompareValue() {
     // Declares the duration given by the user and then converts it to microseconds
     // !! Duration is a type and periodValue is a value !!
-    constexpr Duration period(periodValue);
-    constexpr std::chrono::microseconds periodInUs = period;
+    constexpr Duration PERIOD(periodValue);
+    constexpr std::chrono::microseconds PERIOD_IN_US = PERIOD;
 
     /*
      * Internal clock is 1 MHz, according to templateEMP.h
      *
      * So the compare value is basically the (period[us] / (1us * clockDiv)) - 1. The -1 because the counter starts in 0
-     * !!!! Since all the the values are constants, the division is evaluated in compile time. !!!!!
+     * !!!! Since all the values are constants, the division is evaluated in compile time. !!!!!
      */
-    constexpr int64_t compareValue = (periodInUs.count() / CLK_DIV) - 1;
+    constexpr int64_t COMPARE_VALUE = (PERIOD_IN_US.count() / CLK_DIV) - 1;
 
     // Static assert so if the compareValue is bigger than 0xFFFF the compiler gives an error. This is not added as
     // instructions in the binary. One could verify that it works by calling "setupTimer0<5, std::chrono::seconds>();".
-    static_assert((compareValue <= 0xFFFF), "Cannot set desired timer period. It exceeds the counter maximum value");
-    return static_cast<uint16_t>(compareValue);
+    static_assert((COMPARE_VALUE <= 0xFFFF), "Cannot set desired timer period. It exceeds the counter maximum value");
+    return static_cast<uint16_t>(COMPARE_VALUE);
   }
 
   /**
@@ -251,5 +255,13 @@ private:
 };
 
 } /* namespace Microtech */
+
+
+// Timer0 Interruption
+#pragma vector = TIMER0_A0_VECTOR
+__interrupt void Timer_A_CCR0_ISR(void) {
+  Microtech::Timer<0, 8>::getTimer().interruptionHappened();
+}
+
 
 #endif /* COMMON_TIMER_HPP_ */
