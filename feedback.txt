@@ -1,10 +1,7 @@
-It was very straight forward. I had no problems while solving the exercise apart from being ill for a week.
+It was very straight forward. The part I struggled the most was to use the DTC from the ADC10.
+I had the impression that it would work like a DMA, and directly trigger the next ADC conversions after all
+of the ADC channels were read and written in to the desired addresses, but apparently there is still the need to request the ADC to start the conversion.
 
-I hope the state transition is correct. I did it as it is in the exercise.
+I thought that because I configured the AD to be "Repeat sequence-of-channels", but it didn't work... If you know how to make it I would be glad to learn.
 
-Initial state: all LEDs off <-- never goes back here.
-
-State 1
-State 2
-State 3
-State 4
+I liked to use the DTC, since it requires no CPU to put the conversion to the "meaninful" memory addresses.

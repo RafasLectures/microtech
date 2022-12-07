@@ -5,4 +5,12 @@ void initMSP() {
 
 }
 
+void serialPrint(const char* tx) {
+
+}
+
+void serialPrintln(const char* tx) {
+
+}
+
 #endif  // MICROTECH_TEMPLATEEMP_H
