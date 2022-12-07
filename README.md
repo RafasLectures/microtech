@@ -9,3 +9,4 @@ As soon as an exercise is finished, its commit will be tagged.
 * Exercise 1 - LED blink and serial communication
 * Exercise 2 - Digital I/O and Interrupts
 * Exercise 3 - Interfacing External ICs
+* Exercise 4 - Analog-To-Digital Converters

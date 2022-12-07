@@ -1,426 +1,218 @@
-/***************************************************************************//**
- * @file                    exercise3.cpp
+/*****************************************************************************
+ * @file                    exercise4.cpp
  * @author                  Rafael Andrioli Bauer
- * @date                    18.11.2022
+ * @date                    03.12.2022
  * @matriculation number    5163344
  * @e-mail contact          abauer.rafael@gmail.com
  *
- * @brief   Exercise 3 - Interfacing External ICs
+ * @brief   Exercise 4 - Analog-To-Digital Converters
  *
- * Description: The main starts initializing the MSP. Followed by the timer and Exercise logic
- *              The complete exercise logic, the state changes and so on was implemented in a
- *              class called Exercise Logic.
- *              The Shift registers were abstracted as well and it is described in the ShiftRegister classes
+ * Description: The main starts by initializing the MSP. Followed by the timer, ADC and IOs.
+ *              To get the values from a specific ADC pin, one can simply request an AdcHandle from the
+ *              ADC class. everytime it wants to be evaluated, one can get the raw value or a filtered value.
+ *              The ADC value gets automatically updated by the usage of the DTC. For more details, please look in
+ *              common/Adc.hpp.
  *
- *              A timer was used, so every 5ms there is a clock tick, on every clock tick there is a clock cycle
- *              for the shift registers. At every clock cycle, one PB gets read. The control if the LEDs should change state
- *              is performed using a counter that counts how many clock ticks have happened.
+ *              Timer0 was setup with an interruption of 10ms and at every interrupt the ADC values of the potentiometer
+ *              and from the LDR were evaluated in two separate functions.
  *
+ *              For the bonus point the detection of YELLOW was added using a Post-it
  *
- * Pin connections:  None
+ * Pin connections:  U_POT <-> CON3:P1.7
+ *                   LDR <-> CON3:P1.4
+ *                   Red D6 <-> CON3:P3.0
+ *                   Green D5 <-> CON3:P3.1
+ *                   Blue D7 <-> COM3:P3.2
+ *                   JP2 to COL
  *
  * Theory answers: None.
  *
  * Tasks completed:
  *  Task 1
- *         [x] Initial State                      (x/1,0 pt.)
- *         [x] Playback PB3 pressed - 4 states/s  (x/1,0 pt.)
- *         [x] Playback continues PB3 released    (x/1,0 pt.)
- *         [x] Pause PB2                          (x/1,0 pt.)
- *         [x] Fast-forward PB4 - 8 states/s      (x/1,0 pt.)
- *         [x] Previous state PB4 released        (x/1,0 pt.)
- *         [x] Rewind PB1 - 8 states/s            (x/1,0 pt.)
- *         [x] Previous state PB1 released        (x/1,0 pt.)
- *         [x] Respond to input regardless state  (x/1,0 pt.)
+ *    a)   [x] General Function                   (x/2,0 pt.)
+ *         [x] 1st section = no LED               (x/1,0 pt.)
+ *         [x] 2nd section = D1 on                (x/1,0 pt.)
+ *         [x] 3rd section = D1-2 on              (x/1,0 pt.)
+ *         [x] 4th section = D1-3 on              (x/1,0 pt.)
+ *         [x] 5th section = D1-4 on              (x/1,0 pt.)
+ *   b)
+ *         [x] Detect of a chip                   (x/1,0 pt.)
+ *         [x] Detect white chip                  (x/1,0 pt.)
+ *         [x] Detect black chip                  (x/1,0 pt.)
+ *         [x] Detect green chip                  (x/1,0 pt.)
+ *         [x] Detect blue chip                   (x/1,0 pt.)
  *  Bonus
- *         [ ] D5 - D7 as rotating running light  (0.0/1.0 pt.)
+ *         [x] Detect another color               (x/1.0 pt.)
  *
  *  Task 2
- *         [ ] feedback.txt                       (x/1.0 pt.)
+ *         [x] feedback.txt                       (x/1.0 pt.)
  *
  * @note    The project was exported using CCS 12.1.0.00007
  ******************************************************************************/
-#define NO_TEMPLATE_UART
 #include <templateEMP.h>
 
 #include "GPIOs.hpp"
+#include "MovingAverage.hpp"
 #include "Timer.hpp"
 
-#include "Button.hpp"
+#include "Adc.hpp"
 #include "ShiftRegister.hpp"
-#include <utility>
+
+#include <chrono>
 
 using namespace Microtech;
-
 /**
- * Class implements the exercise logic with the evaluation of the buttons and
- * manipulation of LEDs of the shift register.
+ * Type where the color table is defined.
  */
-class ExerciseLogic {
-public:
-    typedef void (ExerciseLogic::*ButtonEvaluationFunction)(IOState);  ///< Type definition of Button evaluation function
-    typedef void (ExerciseLogic::*DirectionFunction)();           ///< Type definition of direction function
-    /**
-     * Enum defining the index of each button.
-     * Was created to ease us code readability
-     */
-    enum class PBIndex{
-        PB4 = 0,
-        PB3,
-        PB2,
-        PB1,
-    };
-
-    /**
-     * Enum to say the index of which LED is on.
-     */
-    enum class LEDState {
-        D4_ON = 0,
-        D1_ON,
-        D2_ON,
-        D3_ON
-    };
-
-    /**
-     * Constructor of the exercise logic. It it as this point where the also initializes the array with the function pointers to evaluate
-     * the pushbuttons.
-     *
-     * @param registersController reference to the ShiftRegisterController instance
-     * @param registersLED reference to the shift register responsible for controlling the LEDs
-     * @param registersPB reference to the shift register responsible for controlling the PBs
-     */
-    constexpr ExerciseLogic(const ShiftRegisterController& registersController, const ShiftRegisterLED& registersLED, const ShiftRegisterPB& registersPB) :
-            shiftRegisterController(registersController), shiftRegisterLEDs(registersLED), shiftRegisterPBs(registersPB), hasStarted(false) {
-        pbEvalFunc[static_cast<uint8_t>(PBIndex::PB1)] = &ExerciseLogic::evaluatePB1;
-        pbEvalFunc[static_cast<uint8_t>(PBIndex::PB2)] = &ExerciseLogic::evaluatePB2;
-        pbEvalFunc[static_cast<uint8_t>(PBIndex::PB3)] = &ExerciseLogic::evaluatePB3;
-        pbEvalFunc[static_cast<uint8_t>(PBIndex::PB4)] = &ExerciseLogic::evaluatePB4;
-    }
-
-    /**
-     * Method that initializes the shift registers
-     */
-    void init() const noexcept {
-        shiftRegisterController.init();
-        shiftRegisterLEDs.init();
-        shiftRegisterPBs.init();
-    }
-
-    /**
-     * Method that performs the evaluation the evaluation of the PBs and LEDs
-     * This is the method that clocks the shift registers.
-     * So it uses the ShiftRegisterController to generate a clock cycle as well as evaluates
-     * evaluates the PBs and LEDs after the clock cycle.
-     */
-    void performEvaluation() noexcept {
-        // cycles the shift registers and returns what was the current PB that was read after the cycle
-        uint8_t currentPBRead = cycleShiftRegister();
-        // gets the pointer of the function from the array to evaluate the button
-        ButtonEvaluationFunction currentButtonCallback = pbEvalFunc[currentPBRead];
-
-        // calls the button evaluation function
-        (this->*currentButtonCallback)(shiftRegisterPBs.getInputQDState());
-
-        // Verify if there is a direction function, if there is, first, we evaluate
-        // if the number of clock cycles to change LED state is already achieved.
-        // If so, perform the LED state change depending.
-        // Note: the direction function pointer is the one that performs the LED state change.
-        if(directionFunction != nullptr) {
-            if(clockTickCount < clockTicksToChangeLEDState) {
-                clockTickCount++;
-                shiftRegisterLEDs.setMode(ShiftRegisterBase::Mode::PAUSE);
-                return;
-            }
-            clockTickCount = 0;
-            (this->*directionFunction)();
-
-            // This is a flag that was introduced, just in case the user presses to go
-            // reverse before the forward.
-            // It is necessary, because the reverse relies that the LED D1 will be on
-            // Since the initial state has all LEDs OFF, and this will never happen again (according to the exercise description,
-            // State 1 - 4 always has one LED on, and it goes from State 4 to 1 without going through 0,
-            // we need to track if it has already started.
-            if(hasStarted == false) {
-                hasStarted = true;
-            }
-        }
-
-    }
-
-private:
-    /**
-     * This method is the one that performs the clock cycle. It is also responsible for tracking the PB
-     * read counter. The PB counter never stops.
-     */
-    uint8_t cycleShiftRegister() noexcept {
-        // The PB counter that never stops counting
-        static uint8_t PBReadCounter = 0;
-        // Do the PB counter mod MAX_NUM_PBs, so we know which PB we are currently reading.
-        // This will always return a valid value, since up to 255 the mod is always 0, 1, 2, 3 and then the variable
-        // overflows and starts again in 0
-        const uint8_t currentPBRead = PBReadCounter % MAX_NUM_PBs;
-
-        // If the current PB to read is 0, then we ask the shift register to mirror the parallel input.
-        // So the value in D will be output in QD after the next cycle
-        // otherwise, we just tell the shift register to shift its values right
-        if(currentPBRead == 0) {
-            shiftRegisterPBs.setMode(ShiftRegisterBase::Mode::MIRROR_PARALLEL);
-        } else {
-            shiftRegisterPBs.setMode(ShiftRegisterBase::Mode::SHIFT_RIGHT);
-        }
-        shiftRegisterController.clockOneCycle();
-
-        PBReadCounter++;
-        return currentPBRead;
-    }
-
-    /**
-     * Method that evaluates the state of PB1
-     * Whenever it is HIGH, then we start to move the LEDs on reverse at 8 states per second.
-     * When it is released, it returns to the previous state.
-     * @param pb1State The state of the PB 1
-     */
-    void evaluatePB1(IOState pb1State) {
-        // Static variable to track when PB1 changes state. It just gets initialized once, since it is static
-        static IOState previousStatePb1 = IOState::LOW;
-        // Since we need to revert to the previous state, then we also store the pointer of the
-        // direction function before the button became active.
-        static DirectionFunction previousDirectionFunction;
-        // If there is no state change, we do nothing.
-        if(pb1State == previousStatePb1) {
-            return;
-        }
-
-        if(pb1State == IOState::HIGH) {
-            //shiftRegisterLEDs.setMode(ShiftRegisterBase::Mode::SHIFT_LEFT);     // Set LED shift register to shift left
-            previousDirectionFunction = directionFunction;                      // Store previous direction function
-            directionFunction =  &ExerciseLogic::reverse;                       // Change direction function to reverse
-            clockTicksToChangeLEDState = CLK_TICKS_8_STATES_PER_SECOND;         // Change the number of clock ticks necessary to change state
-        } else {
-            clockTicksToChangeLEDState = CLK_TICKS_4_STATES_PER_SECOND;         // Change the number of clock ticks necessary to change state
-            directionFunction = previousDirectionFunction;                      // Set previous direction function
-        }
-
-        previousStatePb1 = pb1State;
-    }
-
-    /**
-     * Method that evaluates the state of PB2
-     * Whenever it is HIGH, then we start to pause the LEDs
-     * When it is released, we keep it paused
-     * @param pb2State The state of the PB 2
-     */
-    void evaluatePB2(IOState pb2State) {
-        static IOState previousStatePb2 = IOState::LOW;
-        if(pb2State == previousStatePb2) {
-            return;
-        }
-
-        if(pb2State == IOState::HIGH) {
-            // Set the shift register to pause, so no matter if there are clocks,
-            // the shift register will not shift the Qx outputs.
-            shiftRegisterLEDs.setMode(ShiftRegisterBase::Mode::PAUSE);
-            directionFunction = nullptr;                    // Set the direction function to null, so it won't be called
-            clockTickCount = 0;                             // Resets the tick count, so the next time it starts again, the first LED will have the correct timing.
-        }
-
-        previousStatePb2 = pb2State;
-
-    }
-
-    /**
-     * Method that evaluates the state of PB3
-     * Whenever it is HIGH, then we start to move the LEDs forward at 4 states per second.
-     * When it is released, it keeps moving forward at 4 states per second
-     * @param pb3State The state of the PB 3
-     */
-    void evaluatePB3(IOState pb3State) {
-        static IOState previousStatePb3 = IOState::LOW;
-        if(pb3State == previousStatePb3) {
-            return;
-        }
-
-        if(pb3State == IOState::HIGH) {
-            //shiftRegisterLEDs.setMode(ShiftRegisterBase::Mode::SHIFT_RIGHT);
-            clockTicksToChangeLEDState = CLK_TICKS_4_STATES_PER_SECOND;         // Change the number of clock ticks necessary to change state
-            directionFunction = &ExerciseLogic::forward;
-        }
-
-        previousStatePb3 = pb3State;
-
-    }
-
-    /**
-     * Method that evaluates the state of PB4
-     * Whenever it is HIGH, then we start to move the LEDs forward at 8 states per second.
-     * When it is released, it returns to the previous state.
-     * @param pb3State The state of the PB 3
-     */
-    void evaluatePB4(IOState pb4State) {
-        static IOState currentStatePb4 = IOState::LOW;
-        static DirectionFunction previousDirectionFunction;
-        if(pb4State == currentStatePb4) {
-            return;
-        }
-
-        if(pb4State == IOState::HIGH) {
-            //shiftRegisterLEDs.setMode(ShiftRegisterBase::Mode::SHIFT_RIGHT);
-            clockTicksToChangeLEDState = CLK_TICKS_8_STATES_PER_SECOND;
-            previousDirectionFunction = directionFunction;
-            directionFunction = &ExerciseLogic::forward;
-        } else {
-            clockTicksToChangeLEDState = CLK_TICKS_4_STATES_PER_SECOND;
-            directionFunction = previousDirectionFunction;
-        }
-        currentStatePb4 = pb4State;
-
-    }
-
-    /**
-     * Method responsible for moving the LEDs forward
-     */
-    void forward() {
-        // Calculates the current LED state. It uses the same approach as for the PBs.
-        // Check the comment on cycleShiftRegister() to see about the mod.
-        const uint8_t currentState = ledStateCount % MAX_NUM_LED_STATES;
-        // Verifies if the current state is that the LED D4 is on.
-        // If it is, it sets the mode of the LED shift register to
-        // Make the Output QA as HIGH in the next right shift,
-        // If not, it sets it to LOW
-        if(currentState == static_cast<uint8_t>(LEDState::D4_ON)) {
-            shiftRegisterLEDs.setQAStateOnRightShift(IOState::HIGH);
-        } else {
-            shiftRegisterLEDs.setQAStateOnRightShift(IOState::LOW);
-        }
-
-        // Sets the LED shift register to shift to the right
-        shiftRegisterLEDs.setMode(ShiftRegisterBase::Mode::SHIFT_RIGHT);
-        ledStateCount++;
-    }
-
-    /**
-     * Method responsible for moving the LEDs backwards
-     */
-    void reverse() {
-        // This is a verification if the LEDs already have left the initial state, where all of the LEDs are OFF.
-        // An explanation about why to have the flag, is given in performEvaluation()
-        if(hasStarted == false) {
-           // When all the LEDs are off, it first sets the mode to shift right and the make the Output QA as HIGH in that shift.
-           shiftRegisterLEDs.setMode(ShiftRegisterBase::Mode::SHIFT_RIGHT);
-           shiftRegisterLEDs.setQAStateOnRightShift(IOState::HIGH);
-           // make  a clock cycle
-           cycleShiftRegister();
-           // set the output QA back to LOW
-           shiftRegisterLEDs.setQAStateOnRightShift(IOState::LOW);
-
-           // And increase the LED state, since now the LED D1 is ON.
-           ledStateCount++;
-           hasStarted = true; // set the flag to true so it doesn't go here again.
-        }
-
-        // Calculates the current LED state. It uses the same approach as for the PBs.
-        // Check the comment on cycleShiftRegister() to see about the mod.
-        const uint8_t currentState = ledStateCount % MAX_NUM_LED_STATES;
-        if(currentState == static_cast<uint8_t>(LEDState::D1_ON)) {
-            // Whenever the LED D1 is ON, we have to make three shifts to the right
-            // to make the LED D4 ON again.
-            shiftRegisterLEDs.setMode(ShiftRegisterBase::Mode::SHIFT_RIGHT);
-            cycleShiftRegister();
-            cycleShiftRegister();
-            cycleShiftRegister();
-            // Sets the mode to PAUSE, since we are already in the correct state and we don't want to
-            // change state in the next clock.
-            shiftRegisterLEDs.setMode(ShiftRegisterBase::Mode::PAUSE);
-        } else {
-            // Otherwise, sets the mode to shift the Outputs to the left.
-            shiftRegisterLEDs.setMode(ShiftRegisterBase::Mode::SHIFT_LEFT);
-        }
-
-        // Decrease the state count, since we are going backwards.
-        ledStateCount--;
-    }
-
-    static const uint8_t MAX_NUM_LED_STATES = 4;                ///< Constant of how many LED states there are
-    static const uint8_t MAX_NUM_PBs = 4;                       ///< Constant of how many PBs states there are
-
-    /**
-     * Constant of how clock ticks are necessary to have the rate of 4 LED states per second
-     * To go 4 states per second it is 250ms per state. The Timer is 5ms so 250/5 = 50. We should
-     * subtract 1 since the counter starts on 0, so 50-1= 49.
-     */
-    static const uint8_t CLK_TICKS_4_STATES_PER_SECOND = 49;
-    /**
-     * Constant of how clock ticks are necessary to have the rate of 8 LED states per second
-     * To go 8 states per second it is 125ms per state. The Timer is 5ms so 125/5 = 25. We should
-     * subtract 1 since the counter starts on 0, so 25-1=24.
-     */
-    static const uint8_t CLK_TICKS_8_STATES_PER_SECOND = 24;
-
-
-    const ShiftRegisterController shiftRegisterController;      ///< Instance that controls the shift registers clk and clear.
-    const ShiftRegisterLED shiftRegisterLEDs;                   ///< Instance that sets the modes of the LED shift register.
-    const ShiftRegisterPB shiftRegisterPBs;                     ///< Instance that sets the modes of the PB shift register.
-
-    bool hasStarted = false;                                    ///< Flag used to know if the LEDs have already left the initial state
-
-    /**
-     * Array with the pointers of the functions that are used to evaluate each PB.
-     */
-    ButtonEvaluationFunction pbEvalFunc[MAX_NUM_PBs] = {nullptr, nullptr, nullptr, nullptr};
-    DirectionFunction directionFunction = nullptr;              ///< Pointer of function that controls the current direction the LEDs are moving.
-    uint8_t ledStateCount = 0;                                  ///< Counter of the LED states
-
-    uint8_t clockTicksToChangeLEDState = CLK_TICKS_4_STATES_PER_SECOND;  ///< variable used on to know currently how many clock ticks are necessary in order to change LED state
-    uint8_t clockTickCount = 0;                                          ///< Counter of how many clock ticks have already happened.
+struct ColorElement {
+  uint16_t minValue;        ///< Minimum value when reading a color
+  uint16_t maxValue;        ///< Maximum value when reading a color
+  const char* colorString;  ///< Color string
 };
 
+ShiftRegisterLED shiftRegisterLEDs(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(4)>(),
+                                   GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(5)>(),
+                                   GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(0)>(),
+                                   GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(1)>(),
+                                   GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(6)>());
 
-constexpr ShiftRegisterLED shiftRegisterLEDs(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(0)>(),
-                                    GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(1)>(),
-                                    GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(6)>());
+// Variables used to be the transition between the interrupt and the value used in the while loop
+const char* colorStr = "";  // the color that will be printed.
+// Only an identifier to know which color was printed last
+// String comparisons usually are expensive, so this wa created to go around string comparison.
+uint8_t idOfColorToPrint = 20;
+uint16_t printLdrVal = 0;
 
-constexpr ShiftRegisterPB shiftRegisterPBs(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(2)>(),
-                                   GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(3)>(),
-                                   GPIOs::getInputHandle<IOPort::PORT_2, static_cast<uint8_t>(7)>());
+static AdcHandle potentiometer = Adc::getInstance().getAdcHandle<7>(); // Statically creates the handle that reads from the ADC, input 7
+static AdcHandle ldr = Adc::getInstance().getAdcHandle<4>(); // Statically creates the handle that reads from the ADC, input 4
+/**
+ * Function that evaluates the potentiometer ADC values and set the turn on the appropriate LEDs.
+ */
+void evaluatePotentiometer() {
+  const uint16_t potValue = potentiometer.getRawValue();
 
-constexpr ShiftRegisterController shiftRegisterController(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(4)>(),
-                                                          GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(5)>());
-
-// Creates exercise logic instance and passes the shift register objects
-ExerciseLogic exerciseLogic(shiftRegisterController, shiftRegisterLEDs, shiftRegisterPBs);
-
-// Declared Timer0 Abstraction with CLK_DIV of 8
-Timer<8> timer0;
-
-void clkTaskShiftRegisters() {
-    exerciseLogic.performEvaluation();
+  if (potValue < 204) {
+    shiftRegisterLEDs.writeValue(0x00);
+  } else if (potValue < 408) {
+    shiftRegisterLEDs.writeValue(0x01);
+  } else if (potValue < 612) {
+    shiftRegisterLEDs.writeValue(0x03);
+  } else if (potValue < 816) {
+    shiftRegisterLEDs.writeValue(0x07);
+  } else {
+    shiftRegisterLEDs.writeValue(0x0F);
+  }
 }
+
+/**
+ * Function that evaluates the LDR ADC values and specifies which string should be printed via serial
+ */
+void evaluateLDR() {
+  /**
+   * Table of supported colors. It is structured as
+   * Minimum LDR value | Maximum LDR value | Color string
+   */
+  static const ColorElement COLOR_TABLE[] = {
+    {255, 271, "Black"},
+    {320, 339, "Green"},
+    {341, 358, "Blue"},
+    {363, 396, "Red"},
+    {490, 515, "White"},
+    {516, 525, "Yellow"},
+  };
+  // Number of elements in the table above.
+  constexpr uint16_t NUM_ELEMENTS_COLOR_TABLE = sizeof(COLOR_TABLE) / sizeof(COLOR_TABLE[0]);
+  // This vatiable is used to know what was the previous detect color,
+  // so we can filter for the settling time of the LDR.
+  static uint8_t lastColorId = 99;  // Just initialize to some random number different than 0
+
+  // Get the filtered value of the LDR. A Moving average over the last 30 samples.
+  const uint16_t ldrValue = ldr.getFilteredValue();
+  uint8_t colorId = 0;  // Variable used to loop through the color table
+
+  // Color table loop.
+  for (colorId = 0; colorId < NUM_ELEMENTS_COLOR_TABLE; colorId++) {
+    // At every iteration, we check if the LDR value is within the range of a certain color defined in the
+    // table. If it is, we set the colorStr, and stop the loop.
+    if (ldrValue > COLOR_TABLE[colorId].minValue && ldrValue < COLOR_TABLE[colorId].maxValue) {
+      colorStr = COLOR_TABLE[colorId].colorString;
+      break;
+    }
+  }
+
+  // Check if the colorId is equal or bigger than the Number of elements in the color table. If it is,
+  // it means that we looped through every entry of the table and no match was found, therefore
+  // we assume that there is no chip.
+  if (colorId >= NUM_ELEMENTS_COLOR_TABLE) {
+    colorStr = "No chip";
+  }
+  printLdrVal = ldrValue;
+  // The final section is used to create a settling of the color,
+  // so it smoothens the transition from one color to another.
+  // Otherwise, we are more sensible to small changes in the ldr.
+  static uint8_t settleCounter = 0;
+  constexpr uint8_t SETTLE_VALUE = 20;
+  if (colorId == lastColorId) {
+    if (settleCounter < SETTLE_VALUE) {
+      settleCounter++;
+    } else {
+      idOfColorToPrint = colorId;
+    }
+  } else {
+    lastColorId = colorId;
+    settleCounter = 0;
+  }
+}
+
+void evaluateAdcTask() {
+  evaluatePotentiometer();
+  evaluateLDR();
+}
+
+using Timer0 = Timer<0, 8>;
 
 int main() {
   initMSP();
 
-  timer0.init();
+  Timer0::getTimer().init();
+  Adc::getInstance().init();
+  shiftRegisterLEDs.init();
 
-  exerciseLogic.init();
+  constexpr OutputHandle redLed = GPIOs::getOutputHandle<IOPort::PORT_3, static_cast<uint8_t>(0)>();
+  constexpr OutputHandle greenLed = GPIOs::getOutputHandle<IOPort::PORT_3, static_cast<uint8_t>(1)>();
+  constexpr OutputHandle blueLed = GPIOs::getOutputHandle<IOPort::PORT_3, static_cast<uint8_t>(2)>();
 
-  shiftRegisterController.start();
+  redLed.init();
+  greenLed.init();
+  blueLed.init();
 
-  // Creates a 5ms periodic task for performing the exercise logic.
-  TaskHandler<5, std::chrono::milliseconds> clkTask(&clkTaskShiftRegisters, true);
+  redLed.setState(IOState::HIGH);
+  greenLed.setState(IOState::HIGH);
+  blueLed.setState(IOState::HIGH);
 
-  // registers exercise logic task to timer 0
-  timer0.registerTask(clkTask);
+  shiftRegisterLEDs.start();
+
+  // Creates a 10ms periodic task for evaluating the adc values.
+  TaskHandler<10, std::chrono::milliseconds> adcTask(&evaluateAdcTask, true);
+
+  // registers adc task to timer 0
+  Timer0::getTimer().registerTask(adcTask);
+
+  Adc::getInstance().startConversion();
+  uint8_t lastPrintedColorId = 99;
 
   // globally enables the interrupts.
   __enable_interrupt();
-  while(true) {
-      __no_operation();
+  while (true) {
+    ADC10CTL0 &= ~ENC;
+    while (ADC10CTL1 & ADC10BUSY){}     // Waits until ADC sampling is done
+    ADC10CTL0 |= ENC + ADC10SC;  // Triggers new sampling from the ADC
+    if (lastPrintedColorId != idOfColorToPrint) {
+      lastPrintedColorId = idOfColorToPrint;
+      serialPrintln(colorStr);
+    }
+//    serialPrintInt(printLdrVal);
+//    serialPrintln("");
   }
   return 0;
-}
-
-// Timer0 Interruption
-#pragma vector = TIMER0_A0_VECTOR
-__interrupt void Timer_A_CCR0_ISR(void) {
-  timer0.interruptionHappened();
 }
