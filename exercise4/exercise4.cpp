@@ -65,9 +65,9 @@ using namespace Microtech;
  * Type where the color table is defined.
  */
 struct ColorElement {
-  uint16_t minValue;
-  uint16_t maxValue;
-  char* colorString;
+  uint16_t minValue;        ///< Minimum value when reading a color
+  uint16_t maxValue;        ///< Maximum value when reading a color
+  const char* colorString;  ///< Color string
 };
 
 ShiftRegisterLED shiftRegisterLEDs(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(4)>(),
@@ -77,16 +77,18 @@ ShiftRegisterLED shiftRegisterLEDs(GPIOs::getOutputHandle<IOPort::PORT_2, static
                                    GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(6)>());
 
 // Variables used to be the transition between the interrupt and the value used in the while loop
-char* colorStr = "";  // the color that will be printed.
+const char* colorStr = "";  // the color that will be printed.
 // Only an identifier to know which color was printed last
 // String comparisons usually are expensive, so this wa created to go around string comparison.
 uint8_t idOfColorToPrint = 20;
+uint16_t printLdrVal = 0;
 
+static AdcHandle potentiometer = Adc::getInstance().getAdcHandle<7>(); // Statically creates the handle that reads from the ADC, input 7
+static AdcHandle ldr = Adc::getInstance().getAdcHandle<4>(); // Statically creates the handle that reads from the ADC, input 4
 /**
  * Function that evaluates the potentiometer ADC values and set the turn on the appropriate LEDs.
  */
 void evaluatePotentiometer() {
-  static const AdcHandle potentiometer = Adc::getInstance().getAdcHandle<7>();
   const uint16_t potValue = potentiometer.getRawValue();
 
   if (potValue < 204) {
@@ -111,14 +113,15 @@ void evaluateLDR() {
    * Minimum LDR value | Maximum LDR value | Color string
    */
   static const ColorElement COLOR_TABLE[] = {
-    {255, 271, "Black"}, {320, 339, "Green"}, {341, 358, "Blue"},
-    {363, 396, "Red"},   {495, 515, "White"}, {516, 525, "Yellow"},
+    {255, 271, "Black"},
+    {320, 339, "Green"},
+    {341, 358, "Blue"},
+    {363, 396, "Red"},
+    {490, 515, "White"},
+    {516, 525, "Yellow"},
   };
   // Number of elements in the table above.
   constexpr uint16_t NUM_ELEMENTS_COLOR_TABLE = sizeof(COLOR_TABLE) / sizeof(COLOR_TABLE[0]);
-
-  // Statically creates the handle that reads from the ADC, input 4
-  static AdcHandle ldr = Adc::getInstance().getAdcHandle<4>();
   // This vatiable is used to know what was the previous detect color,
   // so we can filter for the settling time of the LDR.
   static uint8_t lastColorId = 99;  // Just initialize to some random number different than 0
@@ -143,7 +146,7 @@ void evaluateLDR() {
   if (colorId >= NUM_ELEMENTS_COLOR_TABLE) {
     colorStr = "No chip";
   }
-
+  printLdrVal = ldrValue;
   // The final section is used to create a settling of the color,
   // so it smoothens the transition from one color to another.
   // Otherwise, we are more sensible to small changes in the ldr.
@@ -202,13 +205,14 @@ int main() {
   __enable_interrupt();
   while (true) {
     ADC10CTL0 &= ~ENC;
-    while (ADC10CTL1 & ADC10BUSY)
-      ;                          // Waits until ADC sampling is done
+    while (ADC10CTL1 & ADC10BUSY){}     // Waits until ADC sampling is done
     ADC10CTL0 |= ENC + ADC10SC;  // Triggers new sampling from the ADC
     if (lastPrintedColorId != idOfColorToPrint) {
       lastPrintedColorId = idOfColorToPrint;
       serialPrintln(colorStr);
     }
+//    serialPrintInt(printLdrVal);
+//    serialPrintln("");
   }
   return 0;
 }
