@@ -34,8 +34,9 @@ public:
     MIRROR_PARALLEL,  ///< The outputs QA~D will output the steady state input A~D
   };
 
-  constexpr ShiftRegisterBase(const OutputHandle& clockHandle, const OutputHandle& clearHandle, const OutputHandle& s0Handle, const OutputHandle& s1Handle) :
-         clock(clockHandle), clear(clearHandle), s0(s0Handle), s1(s1Handle) {}
+  constexpr ShiftRegisterBase(const OutputHandle& clockHandle, const OutputHandle& clearHandle,
+                              const OutputHandle& s0Handle, const OutputHandle& s1Handle)
+    : clock(clockHandle), clear(clearHandle), s0(s0Handle), s1(s1Handle) {}
 
   /**
    * Initializes the shift registers.
@@ -49,7 +50,6 @@ public:
    * Method that allows user to set the mode of the shift register.
    */
   void setMode(const Mode mode) const noexcept;
-
 
   /**
    * Enables the shift register to shift the outputs.
@@ -75,10 +75,10 @@ public:
   void clockOneCycle() const noexcept;
 
 private:
-  const OutputHandle s0;            ///< Pin that controls the S0 of the shift register
-  const OutputHandle s1;            ///< Pin that controls the S1 of the shift register
-  const OutputHandle clock;         ///< Output pin connected to the CLK input of the shift register
-  const OutputHandle clear;         ///< Output pin connected to the CLR input of the shift register
+  const OutputHandle s0;     ///< Pin that controls the S0 of the shift register
+  const OutputHandle s1;     ///< Pin that controls the S1 of the shift register
+  const OutputHandle clock;  ///< Output pin connected to the CLK input of the shift register
+  const OutputHandle clear;  ///< Output pin connected to the CLR input of the shift register
 };
 
 /**
@@ -86,51 +86,55 @@ private:
  */
 class ShiftRegisterLED : public ShiftRegisterBase {
 public:
+  constexpr ShiftRegisterLED(const OutputHandle& clockHandle, const OutputHandle& clearHandle,
+                             const OutputHandle& s0Handle, const OutputHandle& s1Handle,
+                             const OutputHandle& shiftRightHandle)
+    : ShiftRegisterBase(clockHandle, clearHandle, s0Handle, s1Handle), shiftRight(shiftRightHandle) {}
 
-    constexpr ShiftRegisterLED(const OutputHandle& clockHandle, const OutputHandle& clearHandle, const OutputHandle& s0Handle, const OutputHandle& s1Handle, const OutputHandle& shiftRightHandle) :
-        ShiftRegisterBase(clockHandle, clearHandle, s0Handle, s1Handle), shiftRight(shiftRightHandle) {}
+  /**
+   * Calls the base initializer and set the the state to of QA to LOW when shifting right
+   */
+  void init() const noexcept {
+    ShiftRegisterBase::init();
+    shiftRight.init();
+    shiftRight.setState(IOState::LOW);
+  }
 
-    /**
-     * Calls the base initializer and set the the state to of QA to LOW when shifting right
-     */
-    void init() const noexcept {
-        ShiftRegisterBase::init();
-        shiftRight.init();
-        shiftRight.setState(IOState::LOW);
+  void writeValue(uint8_t value) {
+    // Cannot print a value more than 0xF, since it is more than 4 bits.
+    constexpr uint8_t MAX_PRINT_VAL = 0xF;
+    constexpr uint8_t NUM_SHIFTS_TO_PRINT = 5;  // Since its 4 bits, we need to have 4 shifts + 1.
+    if (value > MAX_PRINT_VAL) {
+      return;
+    }
+    // If the value was already printed, there is no need to print again.
+    if (value == currentValue) {
+      return;
     }
 
-    void writeValue(uint8_t value) {
-        if(value > 0xF) {
-            return;
-        }
-
-        if(value == currentValue) {
-            return;
-        }
-
-        currentValue = value;
-        reset();
-        setMode(Mode::SHIFT_RIGHT);
-        for(uint8_t i = 5; i > 0; i--) {
-            if(value & (0x01 << (i-1))) {
-                setQAStateOnRightShift(IOState::HIGH);
-            } else {
-                setQAStateOnRightShift(IOState::LOW);
-            }
-            ShiftRegisterBase::clockOneCycle();
-        }
-        setMode(Mode::PAUSE);
+    currentValue = value;
+    reset();  // clears the register
+    setMode(Mode::SHIFT_RIGHT);
+    for (uint8_t i = NUM_SHIFTS_TO_PRINT; i > 0; i--) {
+      if (value & (0x01 << (i - 1))) {
+        setQAStateOnRightShift(IOState::HIGH);
+      } else {
+        setQAStateOnRightShift(IOState::LOW);
+      }
+      ShiftRegisterBase::clockOneCycle();
     }
-    /**
-     * Sets the QA state when a right shift happens
-     */
-    constexpr void setQAStateOnRightShift(const IOState state) const noexcept {
-        shiftRight.setState(state);
-    }
+    setMode(Mode::PAUSE);
+  }
+  /**
+   * Sets the QA state when a right shift happens
+   */
+  constexpr void setQAStateOnRightShift(const IOState state) const noexcept {
+    shiftRight.setState(state);
+  }
 
 private:
-    uint8_t currentValue = 0;
-    const OutputHandle shiftRight;          ///< Pin that is connected to SR pin on the shift register
+  uint8_t currentValue = 0;
+  const OutputHandle shiftRight;  ///< Pin that is connected to SR pin on the shift register
 };
 
 /**
@@ -138,26 +142,28 @@ private:
  */
 class ShiftRegisterPB : public ShiftRegisterBase {
 public:
-    constexpr ShiftRegisterPB(const OutputHandle& clockHandle, const OutputHandle& clearHandle, const OutputHandle& s0Handle, const OutputHandle& s1Handle, const InputHandle& inputQDtHandle) :
-        ShiftRegisterBase(clockHandle, clearHandle, s0Handle, s1Handle), inputQD(inputQDtHandle) {}
+  constexpr ShiftRegisterPB(const OutputHandle& clockHandle, const OutputHandle& clearHandle,
+                            const OutputHandle& s0Handle, const OutputHandle& s1Handle,
+                            const InputHandle& inputQDtHandle)
+    : ShiftRegisterBase(clockHandle, clearHandle, s0Handle, s1Handle), inputQD(inputQDtHandle) {}
 
-    /**
-     * Calls the base initializer initializes the input pin
-     */
-    void init() const noexcept {
-        ShiftRegisterBase::init();
-        inputQD.init();
-    }
+  /**
+   * Calls the base initializer initializes the input pin
+   */
+  void init() const noexcept {
+    ShiftRegisterBase::init();
+    inputQD.init();
+  }
 
-    /**
-     * Returns the state of the QD output of the shift register
-     */
-    constexpr IOState getInputQDState() const noexcept {
-        return inputQD.getState();
-    }
+  /**
+   * Returns the state of the QD output of the shift register
+   */
+  constexpr IOState getInputQDState() const noexcept {
+    return inputQD.getState();
+  }
 
 private:
-    const InputHandle inputQD;                  ///< Input pin connected to the QD output of the shift register
+  const InputHandle inputQD;  ///< Input pin connected to the QD output of the shift register
 };
 } /* namespace Microtech */
 

@@ -5,7 +5,11 @@ void initMSP() {
 
 }
 
-void serialPrint(char* tx) {
+void serialPrint(const char* tx) {
+
+}
+
+void serialPrintln(const char* tx) {
 
 }
 

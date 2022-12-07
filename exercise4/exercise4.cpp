@@ -1,4 +1,4 @@
-/***************************************************************************//**
+/*****************************************************************************
  * @file                    exercise4.cpp
  * @author                  Rafael Andrioli Bauer
  * @date                    03.12.2022
@@ -7,7 +7,16 @@
  *
  * @brief   Exercise 4 - Analog-To-Digital Converters
  *
- * Description:
+ * Description: The main starts by initializing the MSP. Followed by the timer, ADC and IOs.
+ *              To get the values from a specific ADC pin, one can simply request an AdcHandle from the
+ *              ADC class. everytime it wants to be evaluated, one can get the raw value or a filtered value.
+ *              The ADC value gets automatically updated by the usage of the DTC. For more details, please look in
+ *              common/Adc.hpp.
+ *
+ *              Timer0 was setup with an interruption of 10ms and at every interrupt the ADC values of the potentiometer
+ *              and from the LDR were evaluated in two separate functions.
+ *
+ *              For the bonus point the detection of YELLOW was added using a Post-it
  *
  * Pin connections:  U_POT <-> CON3:P1.7
  *                   LDR <-> CON3:P1.4
@@ -40,19 +49,26 @@
  *
  * @note    The project was exported using CCS 12.1.0.00007
  ******************************************************************************/
-//#define NO_TEMPLATE_UART
 #include <templateEMP.h>
 
-#include "MovingAverage.hpp"
 #include "GPIOs.hpp"
+#include "MovingAverage.hpp"
 #include "Timer.hpp"
 
 #include "Adc.hpp"
 #include "ShiftRegister.hpp"
 
-
+#include <chrono>
 
 using namespace Microtech;
+/**
+ * Type where the color table is defined.
+ */
+struct ColorElement {
+  uint16_t minValue;
+  uint16_t maxValue;
+  char* colorString;
+};
 
 ShiftRegisterLED shiftRegisterLEDs(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(4)>(),
                                    GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(5)>(),
@@ -60,84 +76,97 @@ ShiftRegisterLED shiftRegisterLEDs(GPIOs::getOutputHandle<IOPort::PORT_2, static
                                    GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(1)>(),
                                    GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(6)>());
 
+// Variables used to be the transition between the interrupt and the value used in the while loop
+char* colorStr = "";  // the color that will be printed.
+// Only an identifier to know which color was printed last
+// String comparisons usually are expensive, so this wa created to go around string comparison.
+uint8_t idOfColorToPrint = 20;
 
-AdcHandle pot = Adc::getInstance().getAdcHandle<7>();
-AdcHandle ldr = Adc::getInstance().getAdcHandle<4>();
+/**
+ * Function that evaluates the potentiometer ADC values and set the turn on the appropriate LEDs.
+ */
+void evaluatePotentiometer() {
+  static const AdcHandle potentiometer = Adc::getInstance().getAdcHandle<7>();
+  const uint16_t potValue = potentiometer.getRawValue();
 
-const char* colorStr;
-bool printedColor = false;
-uint8_t lastPrintedColorId = 20;
-uint16_t ldrValueToPrint = 0;
-
-void clkTaskShiftRegisters() {
-    const uint16_t potValue = pot.getRawValue();
-
-    if(potValue < 204) {
-        shiftRegisterLEDs.writeValue(0x00);
-    }else if(potValue < 408) {
-        shiftRegisterLEDs.writeValue(0x01);
-    }else if(potValue < 612) {
-        shiftRegisterLEDs.writeValue(0x03);
-    }else if(potValue < 816) {
-        shiftRegisterLEDs.writeValue(0x07);
-    }else {
-        shiftRegisterLEDs.writeValue(0x0F);
-    }
-
-    static SimpleMovingAverage<30> movingAverageFilter;
-
-    const uint16_t ldrValueRaw = ldr.getRawValue();
-    const uint16_t ldrValue = movingAverageFilter(ldrValueRaw);
-    ldrValueToPrint = ldrValue;
-
-    static uint8_t settleCounter = 0;
-   static uint8_t lastColorId = 20;
-   uint8_t colorId = 20;
-   if(ldrValue > 255 && ldrValue < 271) {
-       // Black
-       colorStr = "Black";
-       colorId = 0;
-   } else if(ldrValue > 320 && ldrValue < 339) {
-       // Green
-       colorStr = "Green";
-       colorId = 1;
-   } else if(ldrValue > 341 && ldrValue < 358) {
-       // Blue
-       colorStr = "Blue";
-       colorId = 2;
-   } else if(ldrValue > 363 && ldrValue < 396) {
-       // Red
-       colorStr = "Red";
-       colorId = 3;
-   } else if(ldrValue > 495 && ldrValue < 515) {
-       // White
-       colorStr = "White";
-       colorId = 4;
-   }else if(ldrValue > 516 && ldrValue < 525) {
-         // Yellow
-         colorStr = "Yellow";
-         colorId = 5;
-   } else {
-       // No chip
-       colorStr = "No chip";
-       colorId = 6;
-   }
-
-   if(colorId == lastColorId) {
-     if(settleCounter < 20) {
-         settleCounter++;
-     } else {
-         lastPrintedColorId = colorId;
-     }
-   } else {
-       printedColor = false;
-       lastColorId = colorId;
-       settleCounter = 0;
-   }
-
+  if (potValue < 204) {
+    shiftRegisterLEDs.writeValue(0x00);
+  } else if (potValue < 408) {
+    shiftRegisterLEDs.writeValue(0x01);
+  } else if (potValue < 612) {
+    shiftRegisterLEDs.writeValue(0x03);
+  } else if (potValue < 816) {
+    shiftRegisterLEDs.writeValue(0x07);
+  } else {
+    shiftRegisterLEDs.writeValue(0x0F);
+  }
 }
 
-using Timer0 = Timer<0,8>;
+/**
+ * Function that evaluates the LDR ADC values and specifies which string should be printed via serial
+ */
+void evaluateLDR() {
+  /**
+   * Table of supported colors. It is structured as
+   * Minimum LDR value | Maximum LDR value | Color string
+   */
+  static const ColorElement COLOR_TABLE[] = {
+    {255, 271, "Black"}, {320, 339, "Green"}, {341, 358, "Blue"},
+    {363, 396, "Red"},   {495, 515, "White"}, {516, 525, "Yellow"},
+  };
+  // Number of elements in the table above.
+  constexpr uint16_t NUM_ELEMENTS_COLOR_TABLE = sizeof(COLOR_TABLE) / sizeof(COLOR_TABLE[0]);
+
+  // Statically creates the handle that reads from the ADC, input 4
+  static AdcHandle ldr = Adc::getInstance().getAdcHandle<4>();
+  // This vatiable is used to know what was the previous detect color,
+  // so we can filter for the settling time of the LDR.
+  static uint8_t lastColorId = 99;  // Just initialize to some random number different than 0
+
+  // Get the filtered value of the LDR. A Moving average over the last 30 samples.
+  const uint16_t ldrValue = ldr.getFilteredValue();
+  uint8_t colorId = 0;  // Variable used to loop through the color table
+
+  // Color table loop.
+  for (colorId = 0; colorId < NUM_ELEMENTS_COLOR_TABLE; colorId++) {
+    // At every iteration, we check if the LDR value is within the range of a certain color defined in the
+    // table. If it is, we set the colorStr, and stop the loop.
+    if (ldrValue > COLOR_TABLE[colorId].minValue && ldrValue < COLOR_TABLE[colorId].maxValue) {
+      colorStr = COLOR_TABLE[colorId].colorString;
+      break;
+    }
+  }
+
+  // Check if the colorId is equal or bigger than the Number of elements in the color table. If it is,
+  // it means that we looped through every entry of the table and no match was found, therefore
+  // we assume that there is no chip.
+  if (colorId >= NUM_ELEMENTS_COLOR_TABLE) {
+    colorStr = "No chip";
+  }
+
+  // The final section is used to create a settling of the color,
+  // so it smoothens the transition from one color to another.
+  // Otherwise, we are more sensible to small changes in the ldr.
+  static uint8_t settleCounter = 0;
+  constexpr uint8_t SETTLE_VALUE = 20;
+  if (colorId == lastColorId) {
+    if (settleCounter < SETTLE_VALUE) {
+      settleCounter++;
+    } else {
+      idOfColorToPrint = colorId;
+    }
+  } else {
+    lastColorId = colorId;
+    settleCounter = 0;
+  }
+}
+
+void evaluateAdcTask() {
+  evaluatePotentiometer();
+  evaluateLDR();
+}
+
+using Timer0 = Timer<0, 8>;
 
 int main() {
   initMSP();
@@ -160,27 +189,26 @@ int main() {
 
   shiftRegisterLEDs.start();
 
-  // Creates a 5ms periodic task for performing the exercise logic.
-  TaskHandler<10, std::chrono::milliseconds> clkTask(&clkTaskShiftRegisters, true);
+  // Creates a 10ms periodic task for evaluating the adc values.
+  TaskHandler<10, std::chrono::milliseconds> adcTask(&evaluateAdcTask, true);
 
-  // registers exercise logic task to timer 0
-  Timer0::getTimer().registerTask(clkTask);
+  // registers adc task to timer 0
+  Timer0::getTimer().registerTask(adcTask);
 
   Adc::getInstance().startConversion();
-  uint8_t lastColorId = 20;
+  uint8_t lastPrintedColorId = 99;
 
   // globally enables the interrupts.
   __enable_interrupt();
-  while(true) {
-      ADC10CTL0 &= ~ENC;
-      while ( ADC10CTL1 & ADC10BUSY );
-      ADC10CTL0 |= ENC + ADC10SC ;
-      if(lastColorId != lastPrintedColorId) {
-          lastColorId = lastPrintedColorId;
-          serialPrintln(colorStr);
-      }
-      //serialPrintInt(ldrValueToPrint);
-      //serialPrintln(" ");
+  while (true) {
+    ADC10CTL0 &= ~ENC;
+    while (ADC10CTL1 & ADC10BUSY)
+      ;                          // Waits until ADC sampling is done
+    ADC10CTL0 |= ENC + ADC10SC;  // Triggers new sampling from the ADC
+    if (lastPrintedColorId != idOfColorToPrint) {
+      lastPrintedColorId = idOfColorToPrint;
+      serialPrintln(colorStr);
+    }
   }
   return 0;
 }

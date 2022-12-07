@@ -9,90 +9,127 @@
 
 namespace Microtech {
 
+/**
+ * Class to provide access to a ADC port
+ */
 class AdcHandle {
   friend class Adc;
+
 public:
   AdcHandle() = delete;
-  uint16_t getRawValue() {
-      return rawValue;
+  /**
+   * Method to get the latest raw ADC read
+   * @return the latest raw value
+   */
+  uint16_t getRawValue() const noexcept {
+    return rawValue;
   }
-protected:
-  constexpr AdcHandle(uint16_t& adcValuePtr) : rawValue(adcValuePtr) {}
+  /**
+   * Method to get the latest filtered ADC value
+   * @return the latest filtered value
+   */
+  uint16_t getFilteredValue() noexcept {
+    return smaFilter.filterNewSample(rawValue);
+  }
 
-  void setRawValReference(uint16_t& adcValueRef) {
-      rawValue = adcValueRef;
-  }
-  uint16_t& rawValue;
+protected:
+  /**
+   * Protected constructor so only the ADC class can create a handle.
+   * @param adcValueRef the reference to where the raw value will be written
+   */
+  constexpr AdcHandle(uint16_t& adcValueRef) : rawValue(adcValueRef) {}
+
+private:
+  SimpleMovingAverage<30> smaFilter;  ///< Moving Averaget filter of 30 samples. This can be templated in the future.
+  uint16_t& rawValue;                 ///< Reference to the raw value.
 };
 
 class Adc {
   Adc() = default;
+
 public:
+  // Deleted copy and move constructors
+  Adc(Adc&) = delete;
+  Adc(Adc&&) = delete;
   ~Adc() = default;
 
+  /**
+   * Method that guarantees that there is only one instance of the ADC class in the software
+   * @return A reference to the instance
+   */
   static Adc& getInstance() {
     static Adc instance;
     return instance;
   }
-  void init() noexcept {
 
+  /**
+   * Method that initialized the adc
+   */
+  void init() noexcept {
     // ADC10 on
-    // Multiple sample and conversion on.
     // sample and hold time = 16 ADC Clock cycles = 16*0.2us = 3.2 us
-    ADC10CTL0 = ADC10ON + ADC10SHT_2 + MSC; //+ ADC10IE;
+    // Multiple sample and conversion on.
+    ADC10CTL0 = ADC10ON + ADC10SHT_2 + MSC;
 
     // Repeat-sequence-of-channels mode
     // CLk source = ADC10OSC => around 5 MHz
-    // CLK_DIV
+    // no clock division
     // Source of sample and hold from ADC10SC bit
-    // Always start from A7
-    ADC10CTL1 = CONSEQ_3 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCHVal;
+    // Always start sampling from the ADC7, since we are populating the adcValues array with DTC
+    ADC10CTL1 = CONSEQ_3 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_7;
 
     // Setup Data transfer control 0
-    ADC10DTC0 = ADC10CT; // enable continuous transfer
-    ADC10DTC1 = 8;//sizeof(adcValues)/sizeof(adcValues[0]);
-    ADC10SA = (uint16_t)&(adcValues[0]);   //Starts at address;
-    // need to set INCHx bits of ADC10CTL1 before starting.
-
-
-
-
+    // The basic idea is that everytime the ADC does a conversion, the
+    // Data transfer control automatically writes the results (without any need of CPU) back to the
+    // adcValues array.
+    // References of the adcValues array are passed to the AdcHandles
+    // so when the user gets the AdcHandles, the latest raw value will always be available
+    // without the user having to actively fetch any data from the ADC10MEM.
+    ADC10DTC0 = ADC10CT;                                   // enable continuous transfer
+    ADC10DTC1 = sizeof(adcValues) / sizeof(adcValues[0]);  // Number of transfers is equal to the size of array.
+    ADC10SA = (uint16_t) & (adcValues[0]);                 // Starts at address is the first entry of the array;
   }
 
+  /**
+   * Method that starts the ADC conversion
+   * Previous to this call, one has to already have requested the ADC handles, as well as
+   * initialized the ADC.
+   */
   void startConversion() {
     setRegisterBits(ADC10CTL0, static_cast<uint16_t>(ADC10SC + ENC));
   }
 
-  template<uint8_t pinNumber, uint8_t bitMask = 0x01 << pinNumber, uint16_t CTL1Bits = pinNumber*0x1000>
+  /**
+   * Method to retrieve an ADC Handle.
+   * @tparam pinNumber specify pin number of ADC to be retrieved
+   * @tparam bitMask Not needed to be filled. There is a default value
+   * @return The handle of that ADC pin
+   */
+  template<uint8_t pinNumber, uint8_t bitMask = 0x01 << pinNumber>
   AdcHandle getAdcHandle() {
-      static_assert(pinNumber <= 7, "Cannot set ADC to pin higher than 7");
-    setRegisterBits(ADC10AE0, bitMask);
-    if(INCHVal < CTL1Bits) {
-        INCHVal = CTL1Bits;
-    }
+    constexpr uint8_t MAX_NUM_ADC_CHANNELS = 7;
+    static_assert(pinNumber <= MAX_NUM_ADC_CHANNELS, "Cannot set ADC to pin higher than 7");
+    setRegisterBits(ADC10AE0, bitMask);  // Sets pin as an ADC input
 
-    AdcHandle retVal(adcValues[7-pinNumber]);
+    // Creates the AdcHandle and passes the array entry equivalent to the pin to the handle.
+    AdcHandle retVal(adcValues[MAX_NUM_ADC_CHANNELS - pinNumber]);
 
-    return std::move(retVal);
+    return retVal;
   }
-  //ADC10MEM conversion is stored there
-  // ADC10CTL0 and ADC10CTL1
-  // enabled by ADC10ON bit
-  // ADC10 control bits can only be modified when ENC = 0
-  // ENC must be set to 1 before any conversion can take place.
 
 private:
-  uint16_t INCHVal = 0;
-  uint16_t adcValues[8]{0,0,0,0,0,0,0,0};
-  //std::map<uint8_t, AdcHandle*> handles;
+  /**
+   * Array that stores the conversion values from the ADC.
+   * It is automatically populated by the DTC
+   */
+  std::array<uint16_t, 8> adcValues{0, 0, 0, 0, 0, 0, 0, 0};
 };
-}
+}  // namespace Microtech
 
 // ADC10 Interruption
-//#pragma vector = ADC10_VECTOR
+// #pragma vector = ADC10_VECTOR
 //__interrupt void ADC10_ISR(void) {
 //  Microtech::Adc::getInstance().interruptionHappened();
 //}
-
 
 #endif  // MICROTECH_ADC_HPP

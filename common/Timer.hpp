@@ -26,8 +26,8 @@
 #include <msp430g2553.h>
 #include <array>
 #include <chrono>
-#include <functional>
 #include <cstdint>
+#include <functional>
 
 namespace Microtech {
 /**
@@ -42,7 +42,7 @@ namespace Microtech {
  */
 class TaskHandlerBase {
 public:
-  //using CallbackFunction = std::function<void()>;
+  // using CallbackFunction = std::function<void()>;
   typedef void (*CallbackFunction)();  ///< Type definition of callback
 
   /**
@@ -65,7 +65,7 @@ public:
 
 private:
   const CallbackFunction taskCallback = nullptr;  ///< Callback pointer. Initially null, but can be set on constructor
-  const bool isPeriodic;                  ///< Stores if the task is periodic or not
+  const bool isPeriodic;                          ///< Stores if the task is periodic or not
 };
 
 /**
@@ -84,7 +84,7 @@ private:
 template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
 class TaskHandler : public TaskHandlerBase {
 public:
-    //typedef void (*CallbackFunction)();
+  // typedef void (*CallbackFunction)();
 
   /**
    * Constructor of TaskHandler.
@@ -97,7 +97,7 @@ public:
 
 /**
  * Timer class is responsible for managing the timer of MSP430.
- *
+ * @tparam TIMER_NUMBER The number of the timer.
  */
 template<uint8_t TIMER_NUMBER, int64_t CLK_DIV>
 class Timer {
@@ -105,6 +105,10 @@ public:
   Timer() = default;
   ~Timer() = default;
 
+  /**
+   * Method that guarantees that there is only one instance of the Timer<TIMER_NUM> class in the software
+   * @return A reference to the instance
+   */
   static Timer<TIMER_NUMBER, CLK_DIV>& getTimer() {
     static Timer<TIMER_NUMBER, CLK_DIV> timer;
     return timer;
@@ -181,7 +185,7 @@ public:
    * @param taskHandler Takes the reference of the taskHandler.
    */
   bool deregisterTask(TaskHandlerBase& /*taskHandler*/) {
-    //static_assert(false, "Function not yet implemented");
+    // static_assert(false, "Function not yet implemented");
     return false;
   }
 
@@ -256,12 +260,10 @@ private:
 
 } /* namespace Microtech */
 
-
 // Timer0 Interruption
 #pragma vector = TIMER0_A0_VECTOR
 __interrupt void Timer_A_CCR0_ISR(void) {
   Microtech::Timer<0, 8>::getTimer().interruptionHappened();
 }
-
 
 #endif /* COMMON_TIMER_HPP_ */

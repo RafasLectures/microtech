@@ -65,10 +65,10 @@ enum class IOState {
  *
  */
 class GPIORegisters {
-    friend class IoHandleBase;
-protected:
+  friend class IoHandleBase;
 
-    constexpr GPIORegisters()  {}
+protected:
+  constexpr GPIORegisters() {}
 
   /**
    * Returns the PxDir register reference.
@@ -180,10 +180,9 @@ protected:
       case IOPort::PORT_2: return P2IE;
       default:
       case IOPort::PORT_3:
-          return P1IE;  // It will never get here, but there was a warning.
-        //static_assert(port == IOPort::PORT_1 || port == IOPort::PORT_2, "IOPort 3 does not support interruptions");
+        return P1IE;  // It will never get here, but there was a warning.
+        // static_assert(port == IOPort::PORT_1 || port == IOPort::PORT_2, "IOPort 3 does not support interruptions");
     }
-
   }
   /**
    * Returns the PxIes register reference.
@@ -199,10 +198,9 @@ protected:
       case IOPort::PORT_2: return P2IES;
       default:
       case IOPort::PORT_3:
-          return P1IES;  // It will never get here, but there was a warning
-        //static_assert(port == IOPort::PORT_1 || port == IOPort::PORT_2, "IOPort 3 does not support interruptions");
+        return P1IES;  // It will never get here, but there was a warning
+        // static_assert(port == IOPort::PORT_1 || port == IOPort::PORT_2, "IOPort 3 does not support interruptions");
     }
-
   }
   /**
    * Returns the PxIfg register reference.
@@ -218,8 +216,8 @@ protected:
       case IOPort::PORT_2: return P2IFG;
       default:
       case IOPort::PORT_3:
-          return P1IFG;  // It will never get here, but there was a warning
-        //static_assert(port == IOPort::PORT_1 || port == IOPort::PORT_2, "IOPort 3 does not support interruptions");
+        return P1IFG;  // It will never get here, but there was a warning
+        // static_assert(port == IOPort::PORT_1 || port == IOPort::PORT_2, "IOPort 3 does not support interruptions");
     }
   }
 };
@@ -237,7 +235,7 @@ protected:
  */
 class IoHandleBase {
 public:
-    IoHandleBase() = delete;
+  IoHandleBase() = delete;
   /**
    * Gets the state of the Pin.
    *
@@ -273,20 +271,21 @@ protected:
   using RegisterRef = volatile uint8_t&;
   // Constructor is protected, so it cannot be constructed by anyone else other than its
   // child
-  explicit constexpr IoHandleBase(IOPort port, uint8_t desiredPin) : mPin(desiredPin),
-          mBitMask(static_cast<uint8_t>(0x01) << desiredPin),
-          PxIn(GPIORegisters::getPxIn(port)),
-          PxOut(GPIORegisters::getPxOut(port)),
-          PxDir(GPIORegisters::getPxDir(port)),
-          PxSel(GPIORegisters::getPxSel(port)),
-          PxSel2(GPIORegisters::getPxSel2(port)),
-          PxRen(GPIORegisters::getPxRen(port)),
-          PxIe(GPIORegisters::getPxIe(port)),
-          PxIes(GPIORegisters::getPxIes(port)),
-          PxIfg(GPIORegisters::getPxIfg(port)){}
+  explicit constexpr IoHandleBase(IOPort port, uint8_t desiredPin)
+    : mPin(desiredPin),
+      mBitMask(static_cast<uint8_t>(0x01) << desiredPin),
+      PxIn(GPIORegisters::getPxIn(port)),
+      PxOut(GPIORegisters::getPxOut(port)),
+      PxDir(GPIORegisters::getPxDir(port)),
+      PxSel(GPIORegisters::getPxSel(port)),
+      PxSel2(GPIORegisters::getPxSel2(port)),
+      PxRen(GPIORegisters::getPxRen(port)),
+      PxIe(GPIORegisters::getPxIe(port)),
+      PxIes(GPIORegisters::getPxIes(port)),
+      PxIfg(GPIORegisters::getPxIfg(port)) {}
 
-  const uint8_t mPin;               ///< Pin of the IO
-  const uint8_t mBitMask;           ///< Mask of the IO used to manipulate the registers
+  const uint8_t mPin;      ///< Pin of the IO
+  const uint8_t mBitMask;  ///< Mask of the IO used to manipulate the registers
 
   RegisterRef PxIn;
   RegisterRef PxOut;
@@ -312,7 +311,7 @@ protected:
  */
 class OutputHandle : public IoHandleBase {
 public:
-    OutputHandle() = delete;
+  OutputHandle() = delete;
   /**
    * Class constructor.
    *
@@ -323,10 +322,10 @@ public:
   /**
    * Method initializes the pin. It sets the pin as an output.
    */
-  constexpr void init() const{
-      setRegisterBits(PxDir, mBitMask);
-      resetRegisterBits(PxSel, mBitMask);
-      resetRegisterBits(PxSel2, mBitMask);
+  constexpr void init() const {
+    setRegisterBits(PxDir, mBitMask);
+    resetRegisterBits(PxSel, mBitMask);
+    resetRegisterBits(PxSel2, mBitMask);
   }
 
   /**
@@ -394,26 +393,26 @@ public:
  */
 class InputHandle : public IoHandleBase {
 public:
-    using State = IOState;
+  using State = IOState;
   /**
    * Class constructor.
    *
    * Since the constructor is constexpr the compiler tries to resolved in compile time
    *
    */
-  constexpr InputHandle(IOPort port, uint8_t desiredPin) : IoHandleBase(port, desiredPin) { }
+  constexpr InputHandle(IOPort port, uint8_t desiredPin) : IoHandleBase(port, desiredPin) {}
 
   /**
    * Method initializes the pin. It sets the pin as an input.
    * @note At the moment the input is always disabling the internal resistor.
    */
   constexpr void init() const {
-      resetRegisterBits(PxDir, mBitMask);
-      resetRegisterBits(PxSel, mBitMask);
-      resetRegisterBits(PxSel2, mBitMask);
-      // Disable Pull-Up resistor!
-      resetRegisterBits(PxOut, mBitMask);
-      resetRegisterBits(PxRen, mBitMask);
+    resetRegisterBits(PxDir, mBitMask);
+    resetRegisterBits(PxSel, mBitMask);
+    resetRegisterBits(PxSel2, mBitMask);
+    // Disable Pull-Up resistor!
+    resetRegisterBits(PxOut, mBitMask);
+    resetRegisterBits(PxRen, mBitMask);
   }
   // getState method is implemented in the IoHandleBase, since this class inherits from it
   // also has that functionality
@@ -426,14 +425,13 @@ public:
  * @tparam port IOPort of that is handled by the GPIO instance
  */
 class GPIOs {
-
 public:
-    /**
+  /**
    * Constructor of the GPIOs class
    */
   constexpr GPIOs() {}
 
- /**
+  /**
    * Method to initialize the GPIOs and put them in a known state.
    * Usually this will be called only once
    */
@@ -450,8 +448,8 @@ public:
    */
   template<IOPort port, uint8_t desiredPin>
   static constexpr OutputHandle getOutputHandle() noexcept {
-      constexpr OutputHandle handle = OutputHandle(port, desiredPin);
-      return handle;
+    constexpr OutputHandle handle = OutputHandle(port, desiredPin);
+    return handle;
   }
 
   /**
@@ -460,10 +458,9 @@ public:
    */
   template<IOPort port, uint8_t desiredPin>
   static constexpr InputHandle getInputHandle() noexcept {
-      constexpr InputHandle handle(port, desiredPin);
+    constexpr InputHandle handle(port, desiredPin);
     return handle;
   }
-
 };
 } /* namespace Microtech */
 #endif /* COMMON_GPIOS_HPP_ */
