@@ -2,7 +2,7 @@
 #define MICROTECH_ADC_HPP
 
 #include "helpers.hpp"
-
+#include "MovingAverage.hpp"
 #include <msp430g2553.h>
 #include <cstdint>
 #include <map>
