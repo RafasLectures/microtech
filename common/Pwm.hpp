@@ -15,6 +15,7 @@ public:
   explicit Pwm(const OutputHandle& outputPin) : pwmOutput(outputPin) {}
 
   void init() {
+    Timer<0>::getTimer().init(TIMER_CONFIG);
     pwmOutput.init();
     setRegisterBits(pwmOutput.PxSel, pwmOutput.mBitMask);
     TA0CCTL2 = OUTMOD_3;
@@ -22,7 +23,7 @@ public:
 
   template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
   void setPwmPeriod() {
-    constexpr TimerConfigBase<8> TIMER_CONFIG;
+
     std::unique_ptr<TaskHandler<periodValue, Duration>> newTask =
       std::make_unique<TaskHandler<periodValue, Duration>>(nullptr, true);
 
@@ -43,13 +44,17 @@ public:
     }
     dutyCycle = newDutyCycle;
     updateDutyCycleRegister();
+    return true;
   }
 
+  void stop() {
+      Timer<0>::getTimer().stop();
+  }
 private:
   void updateDutyCycleRegister() {
     const uint32_t valueCCR0 = TACCR0;
     //const uint32_t halfDutyCycle = dutyCycle/2;
-    const uint32_t valueCCR2 = (valueCCR0*MAX_DUTY_CYCLE /*+ halfDutyCycle*/)/dutyCycle;
+    const uint32_t valueCCR2 = (valueCCR0*dutyCycle /*+ halfDutyCycle*/)/MAX_DUTY_CYCLE;
     TA0CCR2 = valueCCR2;
   }
 
@@ -57,6 +62,7 @@ private:
 
   const OutputHandle pwmOutput;
 
+  static constexpr TimerConfigBase<8> TIMER_CONFIG{};
   std::unique_ptr<TaskHandlerBase> currentTask;
   uint32_t dutyCycle = 0;
 };

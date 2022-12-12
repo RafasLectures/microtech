@@ -30,7 +30,7 @@ enum class ButtonState {
  * One can define to which port and Pin this button is connected to
  * and whether the input logic is inverted or not.
  *
- * Appart from that, the its debounce is performed by the button and one can
+ * Apart from that, the its debounce is performed by the button and one can
  * also subscribe to the buttons state changes instead of polling the button state
  * all the time.
  *

@@ -107,8 +107,9 @@ public:
 template<uint8_t TIMER_NUMBER>
 class Timer {
   friend class Pwm;
+  using RegisterRef = volatile uint16_t&;
 public:
-  Timer() = default;
+  Timer() : TAxCTL(getTAxCTL()), TAxCCR0(getTAxCCR0()), TAxCCTL0(getTAxCCTL0()) {}
   ~Timer() = default;
 
   /**
@@ -131,7 +132,7 @@ public:
     constexpr uint16_t TIMER_INPUT_DIVIDER = getTimerInputDivider<CLK_DIV>();
     // Choose SMCLK as clock source
     // Counting in Up Mode
-    TACTL = TASSEL_2 + TIMER_INPUT_DIVIDER + MC_0;
+    TAxCTL = TASSEL_2 + TIMER_INPUT_DIVIDER + MC_0;
   }
   /**
    * Method to register a task to the timer. It will enable the interrupt of timer 0,
@@ -166,7 +167,7 @@ public:
    * since the compiler can deduce them from the TaskHandler type.
    */
   template<int64_t CLK_DIV, uint64_t periodValue, typename Duration = std::chrono::microseconds>
-  constexpr void registerTask(TimerConfigBase<CLK_DIV> config, TaskHandler<periodValue, Duration>& task) {
+  constexpr void registerTask(const TimerConfigBase<CLK_DIV>& /*config*/, TaskHandler<periodValue, Duration>& task) {
     // Gets the timer0 compare value
     constexpr uint16_t COMPARE_VALUE = calculateCompareValue<CLK_DIV, periodValue, Duration>();
 
@@ -181,14 +182,14 @@ public:
      * MOV.W   #0xf423,&Timer0_A3_TA0CCR0. Where #0xf423 is the value coming from compareValue evaluated in compile time
      * which is correct: (500000/8)-1 = 62499 = 0xF423.
      */
-    TACCR0 = COMPARE_VALUE;
+    TAxCCR0 = COMPARE_VALUE;
     // Enable interrupt for CCR0.
-    TACCTL0 |= CCIE;
-    setRegisterBits(TACTL, static_cast<uint16_t>(MC_1));
+    setRegisterBits(TAxCCTL0, static_cast<uint16_t>(CCIE));
+    setRegisterBits(TAxCTL, static_cast<uint16_t>(MC_1));
   }
 
   constexpr void stop() {
-    resetRegisterBits(TACTL, static_cast<uint16_t>(MC_3));
+    resetRegisterBits(TAxCTL, static_cast<uint16_t>(MC_3));
   }
   /**
    * Method to deregister a task. But not yet implemented
@@ -261,6 +262,30 @@ private:
     return ID_0;  // It will actually never get here. But it is needed due to the compiler warning
   }
 
+  static RegisterRef getTAxCTL() {
+      switch (TIMER_NUMBER){
+      case 0: return TA0CTL;
+      case 1: return TA1CTL;
+      };
+      return TA0CTL;
+  }
+
+  static RegisterRef getTAxCCR0() {
+      switch (TIMER_NUMBER){
+      case 0: return TA0CCR0;
+      case 1: return TA1CCR0;
+      };
+      return TA0CCR0;
+  }
+
+  static RegisterRef getTAxCCTL0() {
+      switch (TIMER_NUMBER){
+      case 0: return TA0CCTL0;
+      case 1: return TA1CCTL0;
+      };
+      return TA0CCTL0;
+  }
+
   /**
    * List of the task handlers registered to the timer.
    *
@@ -268,6 +293,9 @@ private:
    * to update the code. And also doesn't add much extra overhead or memory.
    */
   std::array<TaskHandlerBase*, 1> taskHandlers;
+  RegisterRef TAxCTL;
+  RegisterRef TAxCCR0;
+  RegisterRef TAxCCTL0;
 };
 
 } /* namespace Microtech */
@@ -276,6 +304,12 @@ private:
 #pragma vector = TIMER0_A0_VECTOR
 __interrupt void Timer_A_CCR0_ISR(void) {
   Microtech::Timer<0>::getTimer().interruptionHappened();
+}
+
+// Timer1 Interruption
+#pragma vector = TIMER1_A0_VECTOR
+__interrupt void Timer1_A_CCR0_ISR(void) {
+  Microtech::Timer<1>::getTimer().interruptionHappened();
 }
 
 #endif /* COMMON_TIMER_HPP_ */
