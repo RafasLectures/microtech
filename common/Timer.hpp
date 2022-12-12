@@ -84,7 +84,6 @@ private:
 template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
 class TaskHandler : public TaskHandlerBase {
 public:
-  // typedef void (*CallbackFunction)();
 
   /**
    * Constructor of TaskHandler.
@@ -95,12 +94,19 @@ public:
   TaskHandler(CallbackFunction callback, bool isPeriodic) : TaskHandlerBase(callback, isPeriodic) {}
 };
 
+template <int64_t CLK_DIV>
+class TimerConfigBase {
+  template<uint8_t TIMER_NUMBER>
+  friend class Timer;
+public:
+};
 /**
  * Timer class is responsible for managing the timer of MSP430.
  * @tparam TIMER_NUMBER The number of the timer.
  */
-template<uint8_t TIMER_NUMBER, int64_t CLK_DIV>
+template<uint8_t TIMER_NUMBER>
 class Timer {
+  friend class Pwm;
 public:
   Timer() = default;
   ~Timer() = default;
@@ -109,8 +115,8 @@ public:
    * Method that guarantees that there is only one instance of the Timer<TIMER_NUM> class in the software
    * @return A reference to the instance
    */
-  static Timer<TIMER_NUMBER, CLK_DIV>& getTimer() {
-    static Timer<TIMER_NUMBER, CLK_DIV> timer;
+  static Timer<TIMER_NUMBER>& getTimer() {
+    static Timer<TIMER_NUMBER> timer;
     return timer;
   }
   /**
@@ -120,8 +126,9 @@ public:
    * and the count type, which are hardcoded. It can also be an argument
    * in the near future.
    */
-  constexpr void init() {
-    constexpr uint16_t TIMER_INPUT_DIVIDER = getTimerInputDivider();
+  template<int64_t CLK_DIV>
+  constexpr void init(TimerConfigBase<CLK_DIV> /*config*/) {
+    constexpr uint16_t TIMER_INPUT_DIVIDER = getTimerInputDivider<CLK_DIV>();
     // Choose SMCLK as clock source
     // Counting in Up Mode
     TACTL = TASSEL_2 + TIMER_INPUT_DIVIDER + MC_0;
@@ -158,10 +165,10 @@ public:
    * Usually when calling the registerTask, the template parameters don't have to be completed,
    * since the compiler can deduce them from the TaskHandler type.
    */
-  template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
-  constexpr void registerTask(TaskHandler<periodValue, Duration>& task) {
+  template<int64_t CLK_DIV, uint64_t periodValue, typename Duration = std::chrono::microseconds>
+  constexpr void registerTask(TimerConfigBase<CLK_DIV> config, TaskHandler<periodValue, Duration>& task) {
     // Gets the timer0 compare value
-    constexpr uint16_t COMPARE_VALUE = calculateCompareValue<periodValue, Duration>();
+    constexpr uint16_t COMPARE_VALUE = calculateCompareValue<CLK_DIV, periodValue, Duration>();
 
     // For now only one task. This is work in progress.
     // Task is added to taskHandlers array
@@ -180,6 +187,9 @@ public:
     setRegisterBits(TACTL, static_cast<uint16_t>(MC_1));
   }
 
+  constexpr void stop() {
+    resetRegisterBits(TACTL, static_cast<uint16_t>(MC_3));
+  }
   /**
    * Method to deregister a task. But not yet implemented
    * @param taskHandler Takes the reference of the taskHandler.
@@ -200,35 +210,14 @@ public:
     taskHandlers[0]->callCallback();
   }
 
-private:
-  /**
-   * Method to get the correct value of the timer interrupt
-   * Divider given in the template parameter of this class.
-   * There is also a static_assert that is triggered in case the
-   * CLK_DIV is invalid.
-   * An enum was not added since this value is also used for the
-   * timerCompareValue calculation.
-   */
-  static constexpr uint16_t getTimerInputDivider() {
-    switch (CLK_DIV) {
-      case 1: return ID_0;
-      case 2: return ID_1;
-      case 4: return ID_2;
-      case 8: return ID_3;
-      default:
-        static_assert(CLK_DIV == 1 || CLK_DIV == 2 || CLK_DIV == 4 || CLK_DIV == 8,
-                      "Timer input divider is invalid. Must be either 1, 2, 4 or 8");
-    }
-    return ID_0;  // It will actually never get here. But it is needed due to the compiler warning
-  }
-
+protected:
   /**
    * Function to calculate the TACCRx value.
    * Since it is static constexpr and it has all of its values in compile time,
    * this doesn't result in a function call during runtime and it is
    * evaluated in compile time resulting in just a number in the program binary.
    */
-  template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
+  template<int64_t CLK_DIV, uint64_t periodValue, typename Duration = std::chrono::microseconds>
   static constexpr uint16_t calculateCompareValue() {
     // Declares the duration given by the user and then converts it to microseconds
     // !! Duration is a type and periodValue is a value !!
@@ -249,6 +238,29 @@ private:
     return static_cast<uint16_t>(COMPARE_VALUE);
   }
 
+private:
+  /**
+   * Method to get the correct value of the timer interrupt
+   * Divider given in the template parameter of this class.
+   * There is also a static_assert that is triggered in case the
+   * CLK_DIV is invalid.
+   * An enum was not added since this value is also used for the
+   * timerCompareValue calculation.
+   */
+  template<int64_t CLK_DIV>
+  static constexpr uint16_t getTimerInputDivider() {
+    switch (CLK_DIV) {
+      case 1: return ID_0;
+      case 2: return ID_1;
+      case 4: return ID_2;
+      case 8: return ID_3;
+      default:
+        static_assert(CLK_DIV == 1 || CLK_DIV == 2 || CLK_DIV == 4 || CLK_DIV == 8,
+                      "Timer input divider is invalid. Must be either 1, 2, 4 or 8");
+    }
+    return ID_0;  // It will actually never get here. But it is needed due to the compiler warning
+  }
+
   /**
    * List of the task handlers registered to the timer.
    *
@@ -263,7 +275,7 @@ private:
 // Timer0 Interruption
 #pragma vector = TIMER0_A0_VECTOR
 __interrupt void Timer_A_CCR0_ISR(void) {
-  Microtech::Timer<0, 8>::getTimer().interruptionHappened();
+  Microtech::Timer<0>::getTimer().interruptionHappened();
 }
 
 #endif /* COMMON_TIMER_HPP_ */

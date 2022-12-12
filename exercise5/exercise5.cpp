@@ -42,29 +42,22 @@
 #include "GPIOs.hpp"
 #include "Timer.hpp"
 
-#include "Adc.hpp"
+#include "Pwm.hpp"
 
 #include <chrono>
 
 using namespace Microtech;
 
-void evaluateAdcTask() {
-
-}
-
-using Timer0 = Timer<0, 8>;
 
 int main() {
   initMSP();
 
-  Timer0::getTimer().init();
+  Pwm pwm(GPIOs::getOutputHandle<IOPort::PORT_3, static_cast<uint8_t>(6)>());
 
-
-  // Creates a 10ms periodic task for evaluating the adc values.
-  TaskHandler<10, std::chrono::milliseconds> adcTask(&evaluateAdcTask, true);
-
-  // registers adc task to timer 0
-  Timer0::getTimer().registerTask(adcTask);
+  pwm.init();
+  pwm.setDutyCycle(500);
+  // 440 Hz
+  pwm.setPwmPeriod<2272,  std::chrono::microseconds>();
 
   // globally enables the interrupts.
   __enable_interrupt();

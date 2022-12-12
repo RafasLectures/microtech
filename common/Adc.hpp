@@ -87,7 +87,7 @@ public:
     // without the user having to actively fetch any data from the ADC10MEM.
     ADC10DTC0 = ADC10CT;                                   // enable continuous transfer
     ADC10DTC1 = sizeof(adcValues) / sizeof(adcValues[0]);  // Number of transfers is equal to the size of array.
-    ADC10SA = (uint16_t) & (adcValues[0]);                 // Starts at address is the first entry of the array;
+    ADC10SA = (size_t)(&adcValues[0]);                 // Starts at address is the first entry of the array;
   }
 
   /**
