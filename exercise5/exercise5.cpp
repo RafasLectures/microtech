@@ -1,13 +1,31 @@
 /*****************************************************************************
  * @file                    exercise5.cpp
  * @author                  Rafael Andrioli Bauer
- * @date                    07.12.2022
+ * @date                    14.12.2022
  * @matriculation number    5163344
  * @e-mail contact          abauer.rafael@gmail.com
  *
  * @brief   Exercise 5 - Pulse Width Modulation
  *
- * Description:
+ * Description: The main starts by initializing the MSP. Followed by the timer 1. The PB5 and 6 can be enabled by
+ *              declaring a macro (#define) named CAPTURE_FROM_PB5. When that is done, then the code for detecting
+ *              the input interrupt is enabled, as well as the logic of the Timer 1 interruption changes.
+ *
+ *              Two musics arrays are declared, namely We Wish a Merry Christmas and Jingle Bells.
+ *              The software makes use of two helper classes, Jukebox and MusicSelection to perform the logic of the exercise.
+ *
+ *              The Timer 1 is configured to interrupt every 125 ms. When we are note reading the buttons, the timer simply calls
+ *              the Jukebox to evaluate if it needs to change note. That function will return if there are notes still to be processed.
+ *              When there are no more notes to be processed, then the timer interrupt requests to start the next song.
+ *
+ *              When we expect to read from the buttons, there is a Debounce class to prevent debouncing, since when the button is pressed once,
+ *              due to debounce, it can trigger the interruption multiple times. As soon as the button is pressed once, it calls the helper class
+ *              MusicSelection "saying" that the button has been pressed. This class is responsible to select the song based on how many times the button
+ *              was pressed within an specific time period.
+ *
+ *              When expecting to read from the buttons, the timer interruption is different. It executes the method to check if there are more notes to be played,
+ *              calls the MusicSelection to check if the music was selected already, and calls the debouncing of PB5 and PB6.
+ *
  *
  * Pin connections:  BUZZER <-> CON3:P3.6
  *                   PB5 <-> CON3:P1.3
@@ -18,19 +36,18 @@
  *
  * Tasks completed:
  *  Task 1
- *    a)   [ ] PWM with 50% duty-cycle            (x/1,0 pt.)
- *         [ ] Store melody in array              (x/1,0 pt.)
- *         [ ] Melody 1                           (x/1,0 pt.)
- *         [ ] Melody 2                           (x/1,0 pt.)
+ *    a)   [x] PWM with 50% duty-cycle            (x/1,0 pt.)
+ *         [x] Store melody in array              (x/1,0 pt.)
+ *         [x] Melody 1                           (x/1,0 pt.)
+ *         [x] Melody 2                           (x/1,0 pt.)
  *   b)
- *         [ ] Capture PB5 with interrupt         (x/1,0 pt.)
- *         [ ] Press once play melody one         (x/1,0 pt.)
- *         [ ] Press twice play melody two        (x/1,0 pt.)
+ *         [x] Capture PB5 with interrupt         (x/1,0 pt.)
+ *         [x] Press once play melody one         (x/1,0 pt.)
+ *         [x] Press twice play melody two        (x/1,0 pt.)
  *   c)
- *         [ ] Detect board knock from piezo P3IN (x/2,0 pt.)
- *         [ ] Press twice play melody two        (x/1,0 pt.)
+ *         [x] Detect board knock from piezo P3IN (x/2,0 pt.)
  *   d)
- *         [ ] PB6 as a pause/resume button       (x/1,0 pt.)
+ *         [x] PB6 as a pause/resume button       (x/1,0 pt.)
  *
  *  Task 2
  *         [ ] feedback.txt                       (x/1.0 pt.)
@@ -49,15 +66,19 @@
 #define CAPTURE_FROM_PB5
 
 using namespace Microtech;
-Pwm pwm(GPIOs::getOutputHandle<IOPort::PORT_3, static_cast<uint8_t>(6)>());
+Pwm pwm(GPIOs::getOutputHandle<IOPort::PORT_3, static_cast<uint8_t>(6)>());     // Create handle of PWM for pin 6 from port 5
 
-#ifdef CAPTURE_FROM_PB5
+#ifdef CAPTURE_FROM_PB5 // For task 1.a) please comment this line.
+
 constexpr InputHandle pb5 = GPIOs::getInputHandle<IOPort::PORT_1, static_cast<uint8_t>(3)>();
 constexpr InputHandle pb6 = GPIOs::getInputHandle<IOPort::PORT_1, static_cast<uint8_t>(4)>();
+
+constexpr InputHandle piezoIn = GPIOs::getInputHandle<IOPort::PORT_3, static_cast<uint8_t>(6)>();  // Handle of pun from same PWM output, but to allow to read the piezo when not playing a music.
 #endif
 
-typedef void (Pwm::*PwmFuncPointer)();
+typedef void (Pwm::*PwmFuncPointer)(); // Definition of the a function pointer to a method of the class Pwm.
 
+// Creation of the different notes.
 constexpr PwmFuncPointer NONE = &Pwm::setPwmPeriod<0>;
 constexpr PwmFuncPointer C4 = &Pwm::setPwmPeriod<3822>;
 constexpr PwmFuncPointer D4 = &Pwm::setPwmPeriod<3405>;
@@ -69,17 +90,19 @@ constexpr PwmFuncPointer Bb4 = &Pwm::setPwmPeriod<2145>;
 constexpr PwmFuncPointer B4 = &Pwm::setPwmPeriod<2024>;
 constexpr PwmFuncPointer C5 = &Pwm::setPwmPeriod<1911>;
 
-
+// Helper struct used to hold the note itself and its tempo
 struct NoteWithTempo {
-    PwmFuncPointer note;
-    uint8_t numTicks;
+    PwmFuncPointer note;    // Pointer to the note.
+    uint8_t numTicks;       // Tempo of that note.
 };
 
+// Struct that holds a music size together with the pointer to the first note.
 struct Playlist {
     const size_t musicSize;
     const NoteWithTempo* firstNote;
 };
 
+// Declaration of WeWishYouAMerryChristmas
 constexpr NoteWithTempo WeWishYouAMerryChristmas[] {
     {C4, 2},
     {F4, 2},
@@ -114,6 +137,7 @@ constexpr NoteWithTempo WeWishYouAMerryChristmas[] {
     {NONE, 8}
 };
 
+// Declaration of Jingle Bells
 constexpr NoteWithTempo JingleBells[] {
     {A4, 2},
     {A4, 2},
@@ -144,111 +168,265 @@ constexpr NoteWithTempo JingleBells[] {
     {NONE, 8}
 };
 
-constexpr Playlist playlist[]{
-  {sizeof(WeWishYouAMerryChristmas)/sizeof(WeWishYouAMerryChristmas[0]), &WeWishYouAMerryChristmas[0]},
-  {sizeof(JingleBells)/sizeof(JingleBells[0]), &JingleBells[0]},
+// Helper class responsible for holding the playlist and to execute the songs when requested,
+class Jukebox {
+public:
+    Jukebox() = default;
+    ~Jukebox() = default;
+
+    /**
+     * This method is responsible for keeping track of the current note being played and to changing the note
+     * when the tempo of the current note has exceeded.
+     *
+     * @returns If there are still more notes to be played
+     */
+    bool evaluatePlay() {
+        // Counter to give a delay after stopped playing. Usually used to know
+        // if the piezo can already be read.
+        static uint8_t notPlayingCounter = 0;
+        if(playing == false) {
+            if(notPlayingCounter < 3) {
+                timePassedAfterStoppedPlaying = false;
+                notPlayingCounter++;
+            } else {
+                timePassedAfterStoppedPlaying = true;
+            }
+
+            return false;           // return false since we are not playing
+        }
+        // If it is playing the counter goes to 0.
+        notPlayingCounter = 0;
+        timePassedAfterStoppedPlaying = false;
+
+        // Check if we are in the first note and it is the first time we are iterating over it
+        if(currentNoteIndex == 0 && currentNoteTempoCounter == currentNote->numTicks) {
+            (pwm.*(currentNote->note))();   // Play the note
+            songBeingPlayed = true;
+            currentNoteTempoCounter--;      // Decrease the note tempo counter
+        } else {    // If it is not the first note
+            if(currentNoteTempoCounter == 0) {      // The note has already played the correct amount of time
+                currentNoteIndex++;                 // Increase the note
+                currentNote++;                      // Gets the next pointer.
+                if(currentNoteIndex >= musicSize) { // If we are at the end of the song.
+                    playing = false;                // Set playing to false
+                    songBeingPlayed = false;        // We finished the song
+#ifdef CAPTURE_FROM_PB5
+                    stop();
+#endif
+                    return false;                   // Return false since there are no more notes to play
+                }
+                // If it is not the end of the song
+                currentNoteTempoCounter = currentNote->numTicks;    // Updates the tempo counter according to the current note
+                (pwm.*(currentNote->note))();                       // Plays the note.
+            } else {    // If the note has not played the correct amount of time:
+                currentNoteTempoCounter--;  // Decrease note tempo counter.
+            }
+        }
+
+        return true; // return true since there are more iterations to be made.
+    }
+
+#ifdef CAPTURE_FROM_PB5
+    /**
+     * Function used to pause or resume a song.
+     */
+    void pauseOrResume() {
+        // If there is a song being played, we can resume the song, otherwise not.
+        if(songBeingPlayed == true) {
+            if(playing == true) {   // If it is playing we stop
+                stop();
+            } else {
+                pwm.init();         // Sets the pin as PWM
+                piezoIn.enableResistor(false, false); //disable the pulldown resistor
+                (pwm.*(currentNote->note))();       //Play the current
+                pb5.disableInterrupt();         // Disable the PB5 interrupt
+            }
+            playing ^= true;    // Toggle playing
+        }
+
+    }
+#endif
+    /**
+     * Method that requests the Jukebox to play a song
+     */
+    bool playSong(const uint8_t songNumber) {
+        if(songNumber >= PLAYLIST_SIZE) {
+            return false;
+        }
+        currentNoteIndex = 0;
+        currentNote = playlist[songNumber].firstNote;
+        musicSize = playlist[songNumber].musicSize;
+        currentNoteTempoCounter = currentNote->numTicks;
+
+#ifdef CAPTURE_FROM_PB5
+        //Initializes the output to be a PWM and disable the pull-down resistor.
+        pwm.init();
+        piezoIn.enableResistor(false, false);
+#endif
+        playing = true;
+        return true;
+    }
+
+    // Method used to know if the evaluation of the pin used for the piezo input can already be
+    // read. It can only be read if there is no song playing and the a certain time has already
+    // passed after it stopped playing.
+    bool getAllowPiezoEvaluation(){
+        return playing == false && timePassedAfterStoppedPlaying == true;
+    }
+
+    // Method to get the playlist size
+    constexpr size_t getPlaylistSize() const noexcept {
+        return PLAYLIST_SIZE;
+    }
+
+private:
+#ifdef CAPTURE_FROM_PB5
+    /**
+     * Method used when the song needs to stop playing.
+     * It stops the pwm, enables the PB5 interrupt, and makes the
+     * piezo input ready to read the pin.
+     */
+    void stop() {
+        pwm.stop();
+        pb5.enableInterrupt();
+        piezoIn.init();
+        piezoIn.enableResistor(true, false);
+    }
+#endif
+    // The playlist declaration and initialization with the two songs
+    static constexpr Playlist playlist[]{
+                                         {sizeof(WeWishYouAMerryChristmas)/sizeof(WeWishYouAMerryChristmas[0]), &WeWishYouAMerryChristmas[0]},
+                                         {sizeof(JingleBells)/sizeof(JingleBells[0]), &JingleBells[0]},
+                                       };
+
+    const size_t PLAYLIST_SIZE = sizeof(playlist)/sizeof(playlist[0]);  ///< Size of the playlist.
+    bool playing = false;       ///< If there are notes being actively played
+    bool songBeingPlayed = false;   ///< If there is a song being played. Useful to know when we are in the middle of a song and paused.
+    bool timePassedAfterStoppedPlaying = false;     ///< Attribute used to know if there has been a time after the song stopped playing.
+    uint8_t currentNoteIndex = 0;               ///< Attribute holds the index of the current note being played
+    const NoteWithTempo* currentNote = 0;       ///< The pointer pointing to the current note.
+    uint8_t currentNoteTempoCounter = 0;        ///< The counter to know the tempo of the current note.
+    size_t musicSize = 0;                       ///< The music size of the current note being played
 };
 
-bool startFromBeginning = true;
-uint8_t musicIndex = 0;
+// Because it is a static member it also needs to be declared outside of the class declaration
+// So the compiler allocates memory for it. Otherwise there will be a linker error.
+constexpr Playlist Jukebox::playlist[];
+
 
 #ifdef CAPTURE_FROM_PB5
+class MusicSelection {
+public:
+    MusicSelection() = delete;
+    explicit MusicSelection(Jukebox& controllJukebox) : jukebox(controllJukebox) {}
 
-bool play = false;
-bool countNumberOfPressPb5 = false;
-uint8_t numberOfPressPb5 = 0;
-
-void pauseResume() {
-    //play = true;
-}
-
-bool pb5Pressed = false;
-void melodySelection() {
-    if(countNumberOfPressPb5 == false) {
-        numberOfPressPb5 = 0;
-    }
-    countNumberOfPressPb5 = true;
-    pb5Pressed = true;
-}
-
-void countNumberOfPressesPB5() {
-    static constexpr uint8_t TICKS_FOR_1_SECOND = 8;
-    static uint8_t buttonTime = 0;
-
-    if(buttonTime > TICKS_FOR_1_SECOND){
-        countNumberOfPressPb5 = false;
-        buttonTime = 0;
-
-        if(numberOfPressPb5 > 2) {
-            musicIndex = 1;
-        }else {
-            musicIndex = 0;
+    void evaluateNumberPushed(){
+        static uint8_t numberOfEvaluations = 0;
+        if(countPushes == false) {
+            return;
         }
-        play = true;
-        startFromBeginning = true;
-        pb5.disableInterrupt();
-    } else {
-        buttonTime++;
-        if(pb5Pressed == true){
-            numberOfPressPb5++;
-            pb5Pressed = false;
+
+        if(numberOfEvaluations >= TIMER_TICKS_FOR_1_SECOND){
+            numberOfEvaluations = 0;
+            uint8_t songNumber = 0;
+            if(numberOfPushed >= 2) {
+                songNumber = 1;
+            }else {
+                songNumber = 0;
+            }
+            countPushes = false;
+            jukebox.playSong(songNumber);
+            pb5.disableInterrupt();
+        } else {
+            numberOfEvaluations++;
+            if(wasButtonPushed == true) {
+                numberOfPushed++;
+                wasButtonPushed = false;
+            }
         }
     }
-}
-#else
-constexpr bool play = true;
-bool startFromBeginning = true;
 
+    void buttonPushed(){
+        if(countPushes == false) {
+            numberOfPushed = 0;
+            countPushes = true;
+        }
+        wasButtonPushed = true;
+    }
+
+private:
+    static constexpr uint8_t TIMER_TICKS_FOR_1_SECOND = 8;
+
+    bool countPushes = false;
+    bool wasButtonPushed = false;
+    uint8_t numberOfPushed = 0;
+    Jukebox& jukebox;
+};
 #endif
 
+Jukebox jukebox;
+MusicSelection musicSelection(jukebox);
+
+class Debouncer {
+public:
+    typedef void (MusicSelection::*MusicSelectionFuncPointer)();
+    typedef void (Jukebox::*JukeboxFuncPointer)();
+    Debouncer() = delete;
+    explicit Debouncer(MusicSelectionFuncPointer musicSelectionFunc, JukeboxFuncPointer jukeboxFuncPtr) : musicSelectionFunction(musicSelectionFunc), jukeboxFunction(jukeboxFuncPtr) {}
+    void evaluateDebounce(){
+        if(buttonPushed == true) {
+            debounceCounter++;
+
+            if(debounceCounter > 2) {
+                allowTrigger = true;
+                buttonPushed = false;
+                debounceCounter = 0;
+            }
+        }
+    }
+
+    void buttonWasPushed() {
+        buttonPushed = true;
+        if(allowTrigger == true) {
+            if(musicSelectionFunction != nullptr) {
+                (musicSelection.*(musicSelectionFunction))();
+            }
+            if(jukeboxFunction != nullptr) {
+                (jukebox.*(jukeboxFunction))();
+            }
+            allowTrigger = false;
+        }
+    }
+
+private:
+
+    uint8_t debounceCounter = 0;
+    bool allowTrigger = true;
+    bool buttonPushed = false;
+    MusicSelectionFuncPointer musicSelectionFunction = nullptr;
+    JukeboxFuncPointer jukeboxFunction = nullptr;
+};
+
+Debouncer pb5Debouncer(&MusicSelection::buttonPushed, nullptr);
+Debouncer pb6Debouncer(nullptr, &Jukebox::pauseOrResume);
+
 void playTaskFunc() {
-    constexpr size_t PLAYLIST_SIZE = sizeof(playlist)/sizeof(playlist[0]);
-    static uint8_t noteIndex = 0xFA;
-    static uint8_t remainingTicks = 0;
-    static const NoteWithTempo* currentNote = playlist[musicIndex].firstNote;
-
-    if(play) {
-        if(startFromBeginning == true) {
-            currentNote = playlist[musicIndex].firstNote;
-            remainingTicks = currentNote->numTicks;
-            noteIndex = 0;
-            (pwm.*(currentNote->note))();
-            startFromBeginning = false;
-        }
-
-        if(remainingTicks == 0) {
-            pwm.setPwmPeriod<0>();
-
-            noteIndex++;
-            currentNote++;
-
-            if(noteIndex >= playlist[musicIndex].musicSize) {
-    #ifndef CAPTURE_FROM_PB5
-                musicIndex++;
-                if(musicIndex >= PLAYLIST_SIZE) {
-                    musicIndex = 0;
-                }
-                noteIndex = 0;
-                currentNote =  playlist[musicIndex].firstNote;
-    #else
-                play = false;
-                pwm.stop();
-                pb5.enableInterrupt();
-    #endif
-            }
-            if(play) {
-                remainingTicks = currentNote->numTicks;
-                (pwm.*(currentNote->note))();
-            }
+#ifndef CAPTURE_FROM_PB5
+    static size_t songBeingPlayed = (jukebox.getPlaylistSize() - 1);
+    if(jukebox.evaluatePlay() == false) {
+        if(songBeingPlayed >= (jukebox.getPlaylistSize() - 1)) {
+            songBeingPlayed = 0;
         } else {
-            remainingTicks--;
+            songBeingPlayed++;
         }
+        jukebox.playSong(songBeingPlayed);
     }
+#else
+    musicSelection.evaluateNumberPushed();
+    jukebox.evaluatePlay();
+    pb5Debouncer.evaluateDebounce();
+    pb6Debouncer.evaluateDebounce();
 
-#ifdef CAPTURE_FROM_PB5
-    if(countNumberOfPressPb5 == true) {
-        countNumberOfPressesPB5();
-    }
 #endif
 }
 
@@ -257,7 +435,13 @@ int main() {
   constexpr TimerConfigBase<8> TIMER_CONFIG;
   Timer<1>::getTimer().init(TIMER_CONFIG);
 
+  pwm.init();
+  pwm.setDutyCycle(500);
+
+
 #ifdef CAPTURE_FROM_PB5
+  piezoIn.init();
+  piezoIn.enableResistor(true, false);
   pb5.init();
   pb6.init();
 
@@ -265,20 +449,27 @@ int main() {
   pb6.enableInterrupt();
 #endif
 
-  pwm.init();
-  pwm.setDutyCycle(500);
-
-  // Creates a 250ms periodic task for evaluating the adc values.
+  // Creates a 125ms periodic task for evaluating the adc values.
   TaskHandler<125, std::chrono::milliseconds> playTask(&playTaskFunc, true);
 
-  // registers adc task to timer 0
+  // registers play task to timer 1
   Timer<1>::getTimer().registerTask(TIMER_CONFIG, playTask);
 
   // globally enables the interrupts.
   __enable_interrupt();
 
-  while (true) {
+   while (true) {
+#ifdef CAPTURE_FROM_PB5
+       if(jukebox.getAllowPiezoEvaluation() == true) {
+          if(piezoIn.getState() == IOState::HIGH) {
+              pb5Debouncer.buttonWasPushed();
+              //musicSelection.buttonPushed();
+          }
+      }
+#else
     _no_operation();
+#endif
+
   }
   return 0;
 }
@@ -292,9 +483,11 @@ __interrupt void Port_1_ISR(void) {
   const uint8_t pendingInterrupt = getRegisterBits(P1IFG, static_cast<uint8_t>(0x18), static_cast<uint8_t>(3));
 
   if(pendingInterrupt > 1) {
-      pauseResume();
+      pb6Debouncer.buttonWasPushed();
+      //jukebox.pauseOrResume();
   } else {
-      melodySelection();
+      pb5Debouncer.buttonWasPushed();
+      //musicSelection.buttonPushed();
   }
 
   // Sets the state of the button based on the button state evaluation.

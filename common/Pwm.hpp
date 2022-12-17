@@ -1,3 +1,16 @@
+/******************************************************************************
+ * @file                    Pwm.hpp
+ * @author                  Rafael Andrioli Bauer
+ * @date                    14.12.2022
+ * @matriculation number    5163344
+ * @e-mail contact          abauer.rafael@gmail.com
+ *
+ * @brief   Header contains abstraction of PWM
+ *
+ * Description: In order to abstract the manipulation of registers and
+ *              ease up maintainability of the application code, this header
+ *              provides an easy interface to use the PWM
+ ******************************************************************************/
 #ifndef MICROTECH_PWM_HPP
 #define MICROTECH_PWM_HPP
 
