@@ -1,7 +1,4 @@
-It was very straight forward. The part I struggled the most was to use the DTC from the ADC10.
-I had the impression that it would work like a DMA, and directly trigger the next ADC conversions after all
-of the ADC channels were read and written in to the desired addresses, but apparently there is still the need to request the ADC to start the conversion.
+In general it was easy. The only problem I had was with the detection of the knocks with the Piezo.
 
-I thought that because I configured the AD to be "Repeat sequence-of-channels", but it didn't work... If you know how to make it I would be glad to learn.
-
-I liked to use the DTC, since it requires no CPU to put the conversion to the "meaninful" memory addresses.
+As I understood, according to page 56 of the datasheet, it shouldnt matter the PxSel and PxSel2 to read the current input value of the pin. It should always tell the current value
+but if I dont change it, the I cannot really detect the change on the PIN state. That what it took the most for me.

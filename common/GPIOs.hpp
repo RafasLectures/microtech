@@ -234,6 +234,8 @@ protected:
  *
  */
 class IoHandleBase {
+  friend class Pwm;
+
 public:
   IoHandleBase() = delete;
   /**
@@ -258,13 +260,17 @@ public:
    *
    * @note it can be improved in the future to take the edge as a parameter.
    */
-  void enableInterrupt() noexcept {
+  void enableInterrupt() const noexcept {
     // somehow I need to find a way to wrap the pin interrupt here and
     // add a callback. But for now we just enable the pin interrupt and
     // the rest has to be handled from the outside
     setRegisterBits(PxIe, mBitMask);     // Enable interrupt
     setRegisterBits(PxIes, mBitMask);    // High /Low - Edge
     resetRegisterBits(PxIfg, mBitMask);  // Clear interrupt flag
+  }
+
+  void disableInterrupt() const noexcept {
+    resetRegisterBits(PxIe, mBitMask);  // Disable interrupt
   }
 
 protected:
@@ -410,9 +416,22 @@ public:
     resetRegisterBits(PxDir, mBitMask);
     resetRegisterBits(PxSel, mBitMask);
     resetRegisterBits(PxSel2, mBitMask);
-    // Disable Pull-Up resistor!
-    resetRegisterBits(PxOut, mBitMask);
-    resetRegisterBits(PxRen, mBitMask);
+    // Enable Pull-Up resistor!
+    setRegisterBits(PxOut, mBitMask);
+    setRegisterBits(PxRen, mBitMask);
+  }
+
+  constexpr void enableResistor(bool enable, bool pullup) const {
+    if (enable) {
+      setRegisterBits(PxRen, mBitMask);
+      if (pullup) {
+        setRegisterBits(PxOut, mBitMask);
+      } else {
+        resetRegisterBits(PxOut, mBitMask);
+      }
+    } else {
+      resetRegisterBits(PxRen, mBitMask);
+    }
   }
   // getState method is implemented in the IoHandleBase, since this class inherits from it
   // also has that functionality
