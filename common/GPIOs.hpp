@@ -235,6 +235,7 @@ protected:
  */
 class IoHandleBase {
   friend class Pwm;
+
 public:
   IoHandleBase() = delete;
   /**
@@ -269,7 +270,7 @@ public:
   }
 
   void disableInterrupt() const noexcept {
-      resetRegisterBits(PxIe, mBitMask);     // Disable interrupt
+    resetRegisterBits(PxIe, mBitMask);  // Disable interrupt
   }
 
 protected:
@@ -421,16 +422,16 @@ public:
   }
 
   constexpr void enableResistor(bool enable, bool pullup) const {
-      if(enable) {
-          setRegisterBits(PxRen, mBitMask);
-          if(pullup) {
-              setRegisterBits(PxOut, mBitMask);
-          } else {
-              resetRegisterBits(PxOut, mBitMask);
-          }
+    if (enable) {
+      setRegisterBits(PxRen, mBitMask);
+      if (pullup) {
+        setRegisterBits(PxOut, mBitMask);
       } else {
-          resetRegisterBits(PxRen, mBitMask);
+        resetRegisterBits(PxOut, mBitMask);
       }
+    } else {
+      resetRegisterBits(PxRen, mBitMask);
+    }
   }
   // getState method is implemented in the IoHandleBase, since this class inherits from it
   // also has that functionality

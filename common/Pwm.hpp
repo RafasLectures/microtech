@@ -16,9 +16,9 @@
 
 #include "Timer.hpp"
 
+#include <msp430g2553.h>
 #include <chrono>
 #include <memory>
-#include <msp430g2553.h>
 
 namespace Microtech {
 /**
@@ -49,7 +49,7 @@ public:
     std::unique_ptr<TaskHandler<periodValue, Duration>> newTask =
       std::make_unique<TaskHandler<periodValue, Duration>>(nullptr, true);
 
-    if(currentTask) {  // if there is a task playing, deregister the task
+    if (currentTask) {  // if there is a task playing, deregister the task
       Timer<0>::getTimer().deregisterTask(*currentTask);
     }
     // Register the newTask
@@ -58,7 +58,7 @@ public:
     // Update dutycycle, since comparator value changed.
     updateDutyCycleRegister();
 
-    currentTask = std::move(newTask);   // Stores new task pointer.
+    currentTask = std::move(newTask);  // Stores new task pointer.
   }
 
   /**
@@ -66,7 +66,7 @@ public:
    * The duty cycle can be between 0 and 1000. it is equivalent to 0 and 100.0
    */
   bool setDutyCycle(uint32_t newDutyCycle) {
-    if(dutyCycle > MAX_DUTY_CYCLE) {
+    if (dutyCycle > MAX_DUTY_CYCLE) {
       return false;
     }
     dutyCycle = newDutyCycle;
@@ -75,17 +75,18 @@ public:
   }
 
   void stop() {
-      Timer<0>::getTimer().stop();
+    Timer<0>::getTimer().stop();
   }
+
 private:
   /**
    * Method to configure the register responsible by the duty cycle.
    */
   void updateDutyCycleRegister() {
-    const uint32_t valueCCR0 = TACCR0;      // Reads current "period" register
-    //const uint32_t halfDutyCycle = dutyCycle/2;
-    // Calculates the value of the CCR2 based on the value of the current CCR0 value.
-    const uint32_t valueCCR2 = (valueCCR0*dutyCycle /*+ halfDutyCycle*/)/MAX_DUTY_CYCLE;
+    const uint32_t valueCCR0 = TACCR0;  // Reads current "period" register
+    // const uint32_t halfDutyCycle = dutyCycle/2;
+    //  Calculates the value of the CCR2 based on the value of the current CCR0 value.
+    const uint32_t valueCCR2 = (valueCCR0 * dutyCycle /*+ halfDutyCycle*/) / MAX_DUTY_CYCLE;
     TA0CCR2 = valueCCR2;
   }
 

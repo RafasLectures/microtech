@@ -84,7 +84,6 @@ private:
 template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
 class TaskHandler : public TaskHandlerBase {
 public:
-
   /**
    * Constructor of TaskHandler.
    *
@@ -94,10 +93,11 @@ public:
   TaskHandler(CallbackFunction callback, bool isPeriodic) : TaskHandlerBase(callback, isPeriodic) {}
 };
 
-template <int64_t CLK_DIV>
+template<int64_t CLK_DIV>
 class TimerConfigBase {
   template<uint8_t TIMER_NUMBER>
   friend class Timer;
+
 public:
 };
 /**
@@ -108,6 +108,7 @@ template<uint8_t TIMER_NUMBER>
 class Timer {
   friend class Pwm;
   using RegisterRef = volatile uint16_t&;
+
 public:
   Timer() : TAxCTL(getTAxCTL()), TAxCCR0(getTAxCCR0()), TAxCCTL0(getTAxCCTL0()) {}
   ~Timer() = default;
@@ -263,27 +264,27 @@ private:
   }
 
   static RegisterRef getTAxCTL() {
-      switch (TIMER_NUMBER){
+    switch (TIMER_NUMBER) {
       case 0: return TA0CTL;
       case 1: return TA1CTL;
-      };
-      return TA0CTL;
+    };
+    return TA0CTL;
   }
 
   static RegisterRef getTAxCCR0() {
-      switch (TIMER_NUMBER){
+    switch (TIMER_NUMBER) {
       case 0: return TA0CCR0;
       case 1: return TA1CCR0;
-      };
-      return TA0CCR0;
+    };
+    return TA0CCR0;
   }
 
   static RegisterRef getTAxCCTL0() {
-      switch (TIMER_NUMBER){
+    switch (TIMER_NUMBER) {
       case 0: return TA0CCTL0;
       case 1: return TA1CCTL0;
-      };
-      return TA0CCTL0;
+    };
+    return TA0CCTL0;
   }
 
   /**
