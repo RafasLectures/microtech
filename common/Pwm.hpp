@@ -21,7 +21,9 @@
 #include <msp430g2553.h>
 
 namespace Microtech {
-
+/**
+ * Class to abstract the PWM.
+ */
 class Pwm {
 public:
   Pwm() = delete;
@@ -34,23 +36,35 @@ public:
     TA0CCTL2 = OUTMOD_3;
   }
 
+  /**
+   * Class to set the period of the PWM
+   * At the moment we are using the timer 0 as the timer for the PWM.
+   * So this method basically registers a task in the timer, and
+   * since the init configured TA0CTTL2, the compar value of the timer will
+   * be in the pwmOutput.
+   */
   template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
   void setPwmPeriod() {
-
+    // Pointer of a newTask
     std::unique_ptr<TaskHandler<periodValue, Duration>> newTask =
       std::make_unique<TaskHandler<periodValue, Duration>>(nullptr, true);
 
-    if(currentTask) {
+    if(currentTask) {  // if there is a task playing, deregister the task
       Timer<0>::getTimer().deregisterTask(*currentTask);
     }
-    // registers adc task to timer 0
+    // Register the newTask
     Timer<0>::getTimer().registerTask(TIMER_CONFIG, *newTask);
 
+    // Update dutycycle, since comparator value changed.
     updateDutyCycleRegister();
 
-    currentTask = std::move(newTask);
+    currentTask = std::move(newTask);   // Stores new task pointer.
   }
 
+  /**
+   * Method to set the PWM duty cycle.
+   * The duty cycle can be between 0 and 1000. it is equivalent to 0 and 100.0
+   */
   bool setDutyCycle(uint32_t newDutyCycle) {
     if(dutyCycle > MAX_DUTY_CYCLE) {
       return false;
@@ -64,9 +78,13 @@ public:
       Timer<0>::getTimer().stop();
   }
 private:
+  /**
+   * Method to configure the register responsible by the duty cycle.
+   */
   void updateDutyCycleRegister() {
-    const uint32_t valueCCR0 = TACCR0;
+    const uint32_t valueCCR0 = TACCR0;      // Reads current "period" register
     //const uint32_t halfDutyCycle = dutyCycle/2;
+    // Calculates the value of the CCR2 based on the value of the current CCR0 value.
     const uint32_t valueCCR2 = (valueCCR0*dutyCycle /*+ halfDutyCycle*/)/MAX_DUTY_CYCLE;
     TA0CCR2 = valueCCR2;
   }

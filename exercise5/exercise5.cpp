@@ -50,7 +50,7 @@
  *         [x] PB6 as a pause/resume button       (x/1,0 pt.)
  *
  *  Task 2
- *         [ ] feedback.txt                       (x/1.0 pt.)
+ *         [x] feedback.txt                       (x/1.0 pt.)
  *
  * @note    The project was exported using CCS 12.1.0.00007
  ******************************************************************************/
@@ -168,7 +168,9 @@ constexpr NoteWithTempo JingleBells[] {
     {NONE, 8}
 };
 
-// Helper class responsible for holding the playlist and to execute the songs when requested,
+/**
+ * Helper class responsible for holding the playlist and to execute the songs when requested.
+ */
 class Jukebox {
 public:
     Jukebox() = default;
@@ -315,91 +317,127 @@ constexpr Playlist Jukebox::playlist[];
 
 
 #ifdef CAPTURE_FROM_PB5
+/**
+ * Classed used to verify which music was selected.
+ */
 class MusicSelection {
 public:
     MusicSelection() = delete;
+    /**
+     * Constructor of the class. It takes the reference of the Jukebox it is controlling.
+     */
     explicit MusicSelection(Jukebox& controllJukebox) : jukebox(controllJukebox) {}
 
+    /**
+     * Method called by the timer.
+     * It evaluates the number of times a button has been pushed as well as
+     * after being pushed, it waits for a certain number of iterations to make
+     * define how many times the button was pressed.
+     *
+     * With the current setup, it waits it checks the number of pushes within one second.
+     */
     void evaluateNumberPushed(){
         static uint8_t numberOfEvaluations = 0;
+        // Verify if it is supposed to cound pushes
         if(countPushes == false) {
             return;
         }
 
+        // If the number of iterations is bigger or equal the one of the necessary to
+        // reach one second
         if(numberOfEvaluations >= TIMER_TICKS_FOR_1_SECOND){
-            numberOfEvaluations = 0;
+            numberOfEvaluations = 0;    // Resets the number of evaluations.
             uint8_t songNumber = 0;
-            if(numberOfPushed >= 2) {
-                songNumber = 1;
-            }else {
-                songNumber = 0;
+            if(numberOfPushed >= 2) {   // If the number of pushes is equal or bigger to 2
+                songNumber = 1;         // Choose song 2 (1 in the array)
+            }else {                     // Otherwise
+                songNumber = 0;         // Choose song 1 (0 in the array)
             }
-            countPushes = false;
-            jukebox.playSong(songNumber);
-            pb5.disableInterrupt();
-        } else {
-            numberOfEvaluations++;
-            if(wasButtonPushed == true) {
-                numberOfPushed++;
-                wasButtonPushed = false;
+            countPushes = false;        // Stop counting the number of pushes
+            jukebox.playSong(songNumber); // requests jukebox to play the chosen song
+            pb5.disableInterrupt();         // Disables the interrupt of PB5.
+        } else {                // Otherwise
+            numberOfEvaluations++;  // Increase the number of evaluations counter
+            if(wasButtonPushed == true) {   // If the button was pushed
+                numberOfPushed++;           // Increase number of pushes counter
+                wasButtonPushed = false;    // Set the button was pushed flag to false
             }
         }
     }
 
+    /**
+     * Method used to make the connection between the pin interrupt and the timer interrupt
+     * Whenever the pin gets pushed, this function gets called and sets some internal flags.
+     * These flags are then used in the evaluateNumberPushed which is called by the timer.
+     */
     void buttonPushed(){
-        if(countPushes == false) {
-            numberOfPushed = 0;
-            countPushes = true;
+        if(countPushes == false) {  // if the counts are not being done,
+            numberOfPushed = 0;     // Resets counter,
+            countPushes = true;     // and set flag to count pushed to true
         }
         wasButtonPushed = true;
     }
 
 private:
-    static constexpr uint8_t TIMER_TICKS_FOR_1_SECOND = 8;
+    static constexpr uint8_t TIMER_TICKS_FOR_1_SECOND = 8;      ///< Constant specifing the number of ticks to count to 1 second.
 
-    bool countPushes = false;
-    bool wasButtonPushed = false;
-    uint8_t numberOfPushed = 0;
-    Jukebox& jukebox;
+    bool countPushes = false;               ///< Flag used to know whether the class has to count the number of pushes of the button
+    bool wasButtonPushed = false;           ///< Flag to know if the button was pushed
+    uint8_t numberOfPushed = 0;             ///< Counter holding the number of times the button was pushed within a time period
+    Jukebox& jukebox;                       ///< Reference to the jukebox
 };
 #endif
 
-Jukebox jukebox;
-MusicSelection musicSelection(jukebox);
 
+Jukebox jukebox;        ///< Declaration of the jukebox
+
+#ifdef CAPTURE_FROM_PB5
+MusicSelection musicSelection(jukebox); ///< Declaration of the MusicSelection
+/**
+ * Classed used to filter the debounce of the input. It can generate multiple interrupts due to debouncing.
+ * This can be done with template to be easier, but since I don't have much time, it will stay like this.
+ */
 class Debouncer {
 public:
-    typedef void (MusicSelection::*MusicSelectionFuncPointer)();
-    typedef void (Jukebox::*JukeboxFuncPointer)();
+    typedef void (MusicSelection::*MusicSelectionFuncPointer)();    ///< Definition of type of a function pointer from the MusicSelection class
+    typedef void (Jukebox::*JukeboxFuncPointer)();                  ///< Definition of type of a function pointer from the Jukebox class
+
     Debouncer() = delete;
     explicit Debouncer(MusicSelectionFuncPointer musicSelectionFunc, JukeboxFuncPointer jukeboxFuncPtr) : musicSelectionFunction(musicSelectionFunc), jukeboxFunction(jukeboxFuncPtr) {}
-    void evaluateDebounce(){
-        if(buttonPushed == true) {
-            debounceCounter++;
 
-            if(debounceCounter > 2) {
-                allowTrigger = true;
+    /**
+     * Function called by the timer and make sure that debouncing doesn't happen.
+     */
+    void evaluateDebounce(){
+        if(buttonPushed == true) {  // If the button was pushed
+            debounceCounter++;      // Increase debounce counter
+
+            if(debounceCounter > 2) {   // If the counter is bigger than 2
+                allowTrigger = true;    // Allows trigger when the button is pushed
                 buttonPushed = false;
                 debounceCounter = 0;
             }
         }
     }
 
+    /**
+     * Method called by the interrupt when the button is pushed
+     */
     void buttonWasPushed() {
         buttonPushed = true;
-        if(allowTrigger == true) {
-            if(musicSelectionFunction != nullptr) {
-                (musicSelection.*(musicSelectionFunction))();
+        if(allowTrigger == true) {                          // If the trigger is allowed
+            if(musicSelectionFunction != nullptr) {   // Make sure function pointer is not null
+                (musicSelection.*(musicSelectionFunction))();   // Calls the function pointer
             }
+            // same block as above, but different function pointer.
             if(jukeboxFunction != nullptr) {
                 (jukebox.*(jukeboxFunction))();
             }
-            allowTrigger = false;
+            allowTrigger = false;           // disallow trigger from the button.
         }
     }
 
 private:
-
     uint8_t debounceCounter = 0;
     bool allowTrigger = true;
     bool buttonPushed = false;
@@ -409,17 +447,19 @@ private:
 
 Debouncer pb5Debouncer(&MusicSelection::buttonPushed, nullptr);
 Debouncer pb6Debouncer(nullptr, &Jukebox::pauseOrResume);
+#endif
 
 void playTaskFunc() {
 #ifndef CAPTURE_FROM_PB5
+    // Variable that tracks which song is being played.
     static size_t songBeingPlayed = (jukebox.getPlaylistSize() - 1);
-    if(jukebox.evaluatePlay() == false) {
-        if(songBeingPlayed >= (jukebox.getPlaylistSize() - 1)) {
-            songBeingPlayed = 0;
-        } else {
-            songBeingPlayed++;
+    if(jukebox.evaluatePlay() == false) {   // If there are no more notes to play
+        if(songBeingPlayed >= (jukebox.getPlaylistSize() - 1)) {  // and we are at the end of the playlist
+            songBeingPlayed = 0;            // Start from song 0
+        } else {                            // otherwise
+            songBeingPlayed++;              // go to next song
         }
-        jukebox.playSong(songBeingPlayed);
+        jukebox.playSong(songBeingPlayed);  // Request jukebox to play song selected above.
     }
 #else
     musicSelection.evaluateNumberPushed();
@@ -432,7 +472,7 @@ void playTaskFunc() {
 
 int main() {
   initMSP();
-  constexpr TimerConfigBase<8> TIMER_CONFIG;
+  constexpr TimerConfigBase<8> TIMER_CONFIG;    // helper class where states whats the CLK_DIV of the clock.
   Timer<1>::getTimer().init(TIMER_CONFIG);
 
   pwm.init();
@@ -449,7 +489,7 @@ int main() {
   pb6.enableInterrupt();
 #endif
 
-  // Creates a 125ms periodic task for evaluating the adc values.
+  // Creates a 125ms periodic task for perform the exercise logic.
   TaskHandler<125, std::chrono::milliseconds> playTask(&playTaskFunc, true);
 
   // registers play task to timer 1
@@ -484,16 +524,9 @@ __interrupt void Port_1_ISR(void) {
 
   if(pendingInterrupt > 1) {
       pb6Debouncer.buttonWasPushed();
-      //jukebox.pauseOrResume();
   } else {
       pb5Debouncer.buttonWasPushed();
-      //musicSelection.buttonPushed();
   }
-
-  // Sets the state of the button based on the button state evaluation.
-  // If the button state is different, internally the button calls its callback which calls
-  // the state machine evaluation.
-//  pb5.setState(pb5CurrentState);
 
   const uint8_t clearFlag = (pendingInterrupt << 0x03);
   resetRegisterBits(P1IFG, clearFlag);  // clear interrupt flag
