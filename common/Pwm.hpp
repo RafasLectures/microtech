@@ -15,6 +15,7 @@
 #define MICROTECH_PWM_HPP
 
 #include "Timer.hpp"
+#include "GPIOs.hpp"
 
 #include <msp430g2553.h>
 #include <chrono>
@@ -29,10 +30,11 @@ public:
   Pwm() = delete;
   explicit Pwm(const OutputHandle& outputPin) : pwmOutput(outputPin) {}
 
-  void init() {
+  void init() const {
     Timer<0>::getTimer().init(TIMER_CONFIG);
     pwmOutput.init();
-    setRegisterBits(pwmOutput.PxSel, pwmOutput.mBitMask);
+    pwmOutput.disablePinResistor();
+    pwmOutput.setIoFunctionality(IOFunctionality::TA0_COMPARE_OUT2);
     TA0CCTL2 = OUTMOD_3;
   }
 
