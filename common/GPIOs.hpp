@@ -46,6 +46,16 @@ enum class IOState {
   HIGH,     ///< The IO is high.
 };
 
+enum class IOResistor {
+  PULL_DOWN = 0,
+  PULL_UP
+};
+
+enum class IOFunctionality {
+  GPIO = 0,
+  TA0_COMPARE_OUT2,
+};
+
 /**
  * Helper class to return the references of the
  * GPIO registers.
@@ -273,25 +283,63 @@ public:
     resetRegisterBits(PxIe, mBitMask);  // Disable interrupt
   }
 
+  constexpr bool enablePinResistor(IOResistor resistorType) const {
+      setRegisterBits(PxRen, mBitMask);
+      switch (resistorType) {
+      case IOResistor::PULL_DOWN:
+        resetRegisterBits(PxOut, mBitMask);
+        break;
+      case IOResistor::PULL_UP:
+        setRegisterBits(PxOut, mBitMask);
+        break;
+      default:
+        return false;
+      }
+      return true;
+  }
+
+  constexpr void disablePinResistor() const {
+    resetRegisterBits(PxRen, mBitMask);
+  }
+
+  constexpr bool setIoFunctionality(IOFunctionality functionality) const {
+    switch (functionality) {
+      case IOFunctionality::GPIO:
+        resetRegisterBits(PxSel, mBitMask);
+        resetRegisterBits(PxSel2, mBitMask);
+        return true;
+      case IOFunctionality::TA0_COMPARE_OUT2:
+        if (port == IOPort::PORT_3 && mPin == 6) {
+          setRegisterBits(PxSel, mBitMask);
+          resetRegisterBits(PxSel2, mBitMask);
+          return true;
+        }
+        return false;
+    };
+
+    return false;
+  }
 protected:
   using RegisterRef = volatile uint8_t&;
   // Constructor is protected, so it cannot be constructed by anyone else other than its
   // child
-  explicit constexpr IoHandleBase(IOPort port, uint8_t desiredPin)
+  explicit constexpr IoHandleBase(IOPort desiredPort, uint8_t desiredPin)
     : mPin(desiredPin),
+      port(desiredPort),
       mBitMask(static_cast<uint8_t>(0x01) << desiredPin),
-      PxIn(GPIORegisters::getPxIn(port)),
-      PxOut(GPIORegisters::getPxOut(port)),
-      PxDir(GPIORegisters::getPxDir(port)),
-      PxSel(GPIORegisters::getPxSel(port)),
-      PxSel2(GPIORegisters::getPxSel2(port)),
-      PxRen(GPIORegisters::getPxRen(port)),
-      PxIe(GPIORegisters::getPxIe(port)),
-      PxIes(GPIORegisters::getPxIes(port)),
-      PxIfg(GPIORegisters::getPxIfg(port)) {}
+      PxIn(GPIORegisters::getPxIn(desiredPort)),
+      PxOut(GPIORegisters::getPxOut(desiredPort)),
+      PxDir(GPIORegisters::getPxDir(desiredPort)),
+      PxSel(GPIORegisters::getPxSel(desiredPort)),
+      PxSel2(GPIORegisters::getPxSel2(desiredPort)),
+      PxRen(GPIORegisters::getPxRen(desiredPort)),
+      PxIe(GPIORegisters::getPxIe(desiredPort)),
+      PxIes(GPIORegisters::getPxIes(desiredPort)),
+      PxIfg(GPIORegisters::getPxIfg(desiredPort)) {}
 
   const uint8_t mPin;      ///< Pin of the IO
   const uint8_t mBitMask;  ///< Mask of the IO used to manipulate the registers
+  const IOPort port;
 
   RegisterRef PxIn;
   RegisterRef PxOut;
@@ -330,8 +378,7 @@ public:
    */
   constexpr void init() const {
     setRegisterBits(PxDir, mBitMask);
-    resetRegisterBits(PxSel, mBitMask);
-    resetRegisterBits(PxSel2, mBitMask);
+    setIoFunctionality(IOFunctionality::GPIO);
   }
 
   /**
@@ -414,24 +461,7 @@ public:
    */
   constexpr void init() const {
     resetRegisterBits(PxDir, mBitMask);
-    resetRegisterBits(PxSel, mBitMask);
-    resetRegisterBits(PxSel2, mBitMask);
-    // Enable Pull-Up resistor!
-    setRegisterBits(PxOut, mBitMask);
-    setRegisterBits(PxRen, mBitMask);
-  }
-
-  constexpr void enableResistor(bool enable, bool pullup) const {
-    if (enable) {
-      setRegisterBits(PxRen, mBitMask);
-      if (pullup) {
-        setRegisterBits(PxOut, mBitMask);
-      } else {
-        resetRegisterBits(PxOut, mBitMask);
-      }
-    } else {
-      resetRegisterBits(PxRen, mBitMask);
-    }
+    setIoFunctionality(IOFunctionality::GPIO);
   }
   // getState method is implemented in the IoHandleBase, since this class inherits from it
   // also has that functionality
@@ -449,17 +479,6 @@ public:
    * Constructor of the GPIOs class
    */
   constexpr GPIOs() {}
-
-  /**
-   * Method to initialize the GPIOs and put them in a known state.
-   * Usually this will be called only once
-   */
-  //  constexpr void initGpios() noexcept {
-  //    // Initialize all  outputs of port 1 to 0
-  //    resetRegisterBits<uint8_t>(registers.PxOut(), static_cast<uint8_t>(0xFF));
-  //    // Disable all internal resistors of the port
-  //    resetRegisterBits(registers.PxRen(), static_cast<uint8_t>(0xFF));
-  //  }
 
   /**
    * Method to get an OutputHandle. To see the purpose of an OutputHandle, please check its documentation
