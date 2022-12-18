@@ -1,4 +1,3 @@
-In general it was easy. The only problem I had was with the detection of the knocks with the Piezo.
+In general it was easy. Also easy to update the code to from previous exercise.
 
-As I understood, according to page 56 of the datasheet, it shouldnt matter the PxSel and PxSel2 to read the current input value of the pin. It should always tell the current value
-but if I dont change it, the I cannot really detect the change on the PIN state. That what it took the most for me.
+Voltage follower circuit and voltage comparator circuits were easy to understand as well.

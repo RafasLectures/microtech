@@ -7,34 +7,47 @@
 *
 * @brief   Exercise 6 - Dynamic Circuit Configuration
 *
-* Description:
+* Description: The main starts by initializing the MSP. The software was adapted from exercise 5.
+*              the detection of PB5 and 6 were kept, but two other IOs were declared: COMP_OUT and REL_STATS.
+*
+*              Two musics arrays are declared, namely We Wish a Merry Christmas and Jingle Bells.
+*              The software makes use of two helper classes, Jukebox and MusicSelection to perform the logic of the
+*              exercise.
+*
+*              Since the NC contact is in the DAC_IN, the BUZZER is connected to it, therefore the software starts by expecting an interrupt on COMP_OUT.
+*              As soon as a song is selected, the relay is activated and the NO contact (PWM output) is connected to the BUZZER, so a song can be played.
+*              When the song finishes to play, the relay is turned off and after 250ms, the interrupt on COMP_OUT is re-enabled.
+*
+*              The Timer 1 is configured to interrupt every 125 ms. It executes the method to
+*              check if there are more notes to be played, calls the MusicSelection to check if the music was selected already, and
+*              calls the debouncing of PB5 and PB6.
+*
+*              There is a Debouncer class (declared in common/Debouncer.hpp) to prevent debouncing, since when the
+*              button is pressed once, due to debounce, it can trigger the interruption multiple times. As soon as the button is
+*              pressed once, it calls the helper class MusicSelection "saying" that the button has been pressed. This class is
+*              responsible to select the song based on how many times the button was pressed within an specific time period.
 *
 * Pin connections:  BUZZER <-> CON4 middle
 *                   DAC_IN <-> CON4 right
 *                   CON3:P3.6 <-> CON4 left
 *                   REL_STAT <-> CON3:P1.0
+*                   PB5 <-> CON3:P1.3
+*                   PB6 <-> CON3:P1.4
 *                   COMP_OUT <-> CON3:P1.5
+*                   Potentiometer in the middle
 *                   JP5 to VFO
 *
-* Theory answers: None.
+* Theory answers: Answered in theory.txt
 *
 * Tasks completed:
 *  Task 1
-*    a)   [x] PWM with 50% duty-cycle            (x/1,0 pt.)
-*         [x] Store melody in array              (x/1,0 pt.)
-*         [x] Melody 1                           (x/1,0 pt.)
-*         [x] Melody 2                           (x/1,0 pt.)
-*   b)
-*         [x] Capture PB5 with interrupt         (x/1,0 pt.)
-*         [x] Press once play melody one         (x/1,0 pt.)
-*         [x] Press twice play melody two        (x/1,0 pt.)
-*   c)
-*         [x] Detect board knock from piezo P3IN (x/2,0 pt.)
-*   d)
-*         [x] PB6 as a pause/resume button       (x/1,0 pt.)
-*
+*    a)
+*         [x] Modify exercise5                       (x/6,0 pt.)
+*    b)
+*         [x] Two advantages compared to exercise 5  (x/1,0 pt.)
+*         [x] Describe signal flow                   (x/2,0 pt.)
 *  Task 2
-*         [x] feedback.txt                       (x/1.0 pt.)
+*         [x] feedback.txt                           (x/1.0 pt.)
 *
 * @note    The project was exported using CCS 12.1.0.00007
 ******************************************************************************/
@@ -118,28 +131,21 @@ public:
      return false;  // return false since we are not playing
    }
 
-   // Check if we are in the first note, and it is the first time we are iterating over it
-   //if (currentNoteIndex == 0 && currentNoteTempoCounter == currentNote->numTicks) {
-     //(pwm.*(currentNote->note))();  // Play the note
-
-     //currentNoteTempoCounter--;              // Decrease the note tempo counter
-   //} else {                                  // If it is not the first note
-     if (currentNoteTempoCounter == 0) {     // The note has already played the correct amount of time
-       currentNoteIndex++;                   // Increase the note
-       currentNote++;                        // Gets the next pointer.
-       if (currentNoteIndex >= musicSize) {  // If we are at the end of the song.
-         playing = false;                    // Set playing to false
-         songBeingPlayed = false;            // We finished the song
-         stop();
-         return false;  // Return false since there are no more notes to play
-       }
-       // If it is not the end of the song
-       currentNoteTempoCounter = currentNote->numTicks;  // Updates the tempo counter according to the current note
-       (pwm.*(currentNote->note))();                     // Plays the note.
-     } else {                                            // If the note has not played the correct amount of time:
-       currentNoteTempoCounter--;                        // Decrease note tempo counter.
+   if (currentNoteTempoCounter == 0) {     // The note has already played the correct amount of time
+     currentNoteIndex++;                   // Increase the note
+     currentNote++;                        // Gets the next pointer.
+     if (currentNoteIndex >= musicSize) {  // If we are at the end of the song.
+       playing = false;                    // Set playing to false
+       songBeingPlayed = false;            // We finished the song
+       stop();
+       return false;  // Return false since there are no more notes to play
      }
-   //}
+     // If it is not the end of the song
+     currentNoteTempoCounter = currentNote->numTicks;  // Updates the tempo counter according to the current note
+     (pwm.*(currentNote->note))();                     // Plays the note.
+   } else {                                            // If the note has not played the correct amount of time:
+     currentNoteTempoCounter--;                        // Decrease note tempo counter.
+   }
 
    return true;  // return true since there are more iterations to be made.
  }
@@ -196,13 +202,12 @@ private:
   */
  void stop() {
    pwm.stop();
-   REL_STAT.setState(IOState::HIGH);
-   COMP_OUT.enableInterrupt();
+   REL_STAT.setState(IOState::LOW);
    PB5.enableInterrupt();
  }
 
  void startPlaying() {
-   REL_STAT.setState(IOState::LOW);
+   REL_STAT.setState(IOState::HIGH);
    COMP_OUT.disableInterrupt();
    PB5.disableInterrupt();                // Disable the PB5 interrupt
    (pwm.*(currentNote->note))();          // Play the current
@@ -305,8 +310,18 @@ Debouncer<MusicSelection> pb5Debouncer(musicSelection,&MusicSelection::buttonPus
 Debouncer<Jukebox> pb6Debouncer(jukebox, &Jukebox::pauseOrResume);
 
 void playTaskFunc() {
+ static uint8_t waitingTimeAfterFinished = 0;
  musicSelection.evaluateNumberPushed();
- jukebox.evaluatePlay();
+
+ if(!(jukebox.evaluatePlay())) {
+     if(waitingTimeAfterFinished >= 2) {
+         COMP_OUT.enableInterrupt();
+     } else {
+         waitingTimeAfterFinished++;
+     }
+ } else {
+     waitingTimeAfterFinished = 0;
+ }
  pb5Debouncer.evaluateDebounce();
  pb6Debouncer.evaluateDebounce();
 }
@@ -350,8 +365,8 @@ int main() {
 // Port 1 interrupt vector
 #pragma vector = PORT1_VECTOR
 __interrupt void Port_1_ISR(void) {
- // Get bits 3, 4 and 5 => 0011 1000 = 0x28
- const uint8_t pendingInterrupt = getRegisterBits(P1IFG, static_cast<uint8_t>(0x28), static_cast<uint8_t>(3));
+ // Get bits 3, 4 and 5 => 0011 1000 = 0x38
+ const uint8_t pendingInterrupt = getRegisterBits(P1IFG, static_cast<uint8_t>(0x38), static_cast<uint8_t>(3));
 
  if (pendingInterrupt > 1 && pendingInterrupt < 4) {
    pb6Debouncer.buttonWasPushed();

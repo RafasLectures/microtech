@@ -1,0 +1,15 @@
+1.b) Advantages:
+	1. The voltage follower circuit has a high input impedence, while the input pin has a 20kOhm to 50kOhm input impedance (according to datasheet page 24) from the the pull-down resistor.
+	   Higher impedance is better for a voltage input.
+	   
+	2. The voltage comparator circuit allows us to adjust the voltage threshold for detecting a vibration with the potentiometer P1.
+	
+	Signal flow:
+	The BUZZER is connected to the common of the relay. The normally close (NC) is connected to the DAC_IN, so whenever the relay is off (REL_STAT = 0), the value from
+	the BUZZER goes to the voltage follower (DAC_IN), and its output goes to the voltage comparator. The reference voltage is defined by the value of the voltage drop in P1.
+	When there is a vibration, there is a voltage in DAC_IN, causing the voltage follower to input a voltage in the voltage comparator. If this voltage is bigger than the threshold,
+	the COMP_OUT goes to 1. This triggers a pin interrupt and the software disables the interrupt of that pin, and turns on the relay (REL_STAT = 1)
+	in which connects the BUZZER to the normally closed (NC) contact (connected to the PWM pin).
+	The song play and as soon as the song is done, the relay is powered off (REL_STAT = 0) and after 250ms the software re-enables the COMP_OUT pin interrupt.
+	
+	To turn on the relay, the ransistor T1 is polarized (gate of T1 goes to HIGH).
