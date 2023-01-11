@@ -53,6 +53,7 @@ enum class IOResistor {
 
 enum class IOFunctionality {
   GPIO = 0,
+  TA0_COMPARE_OUT1,
   TA0_COMPARE_OUT2,
 };
 
@@ -308,6 +309,13 @@ public:
         resetRegisterBits(PxSel, mBitMask);
         resetRegisterBits(PxSel2, mBitMask);
         return true;
+      case IOFunctionality::TA0_COMPARE_OUT1:
+        if (port == IOPort::PORT_3 && mPin == 5) {
+          setRegisterBits(PxSel, mBitMask);
+          resetRegisterBits(PxSel2, mBitMask);
+          return true;
+        }
+        return false;
       case IOFunctionality::TA0_COMPARE_OUT2:
         if (port == IOPort::PORT_3 && mPin == 6) {
           setRegisterBits(PxSel, mBitMask);
@@ -461,6 +469,7 @@ public:
    */
   constexpr void init() const {
     resetRegisterBits(PxDir, mBitMask);
+    resetRegisterBits(PxIfg, mBitMask);
     setIoFunctionality(IOFunctionality::GPIO);
   }
   // getState method is implemented in the IoHandleBase, since this class inherits from it

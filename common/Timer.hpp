@@ -93,12 +93,35 @@ public:
   TaskHandler(CallbackFunction callback, bool isPeriodic) : TaskHandlerBase(callback, isPeriodic) {}
 };
 
-template<int64_t CLK_DIV>
+class TimerClockSource {
+public:
+    enum class Option {
+        TACLK,
+        ACLK,
+        SMCLK,
+        INCLK
+    };
+
+    static uint16_t getTASSELValue(const Option option) noexcept {
+      switch (option) {
+          case Option::TACLK: return TASSEL_0;
+          case Option::ACLK: return TASSEL_1;
+          case Option::SMCLK: return TASSEL_2;
+          case Option::INCLK: return TASSEL_3;
+        }
+      return TASSEL_2;  // It will actually never get here. But it is needed due to the compiler warning
+    }
+};
+
+template<int64_t CLK_DIV, int64_t SOURCE_CLK_PERIOD_US>
 class TimerConfigBase {
   template<uint8_t TIMER_NUMBER>
   friend class Timer;
-
 public:
+  constexpr TimerConfigBase(TimerClockSource::Option clkSource) : clkSource(clkSource) {}
+
+protected:
+  const TimerClockSource::Option clkSource;
 };
 /**
  * Timer class is responsible for managing the timer of MSP430.
@@ -124,16 +147,16 @@ public:
   /**
    * Method to initialize the timer. The CLK_DIV is at the moment a template parameter
    * the timer class.
-   * Apart from that, this method also sets the clock source
-   * and the count type, which are hardcoded. It can also be an argument
+   * Apart from that, this method also sets the
+   * the count type, which IS hard coded. It can also be an argument
    * in the near future.
    */
-  template<int64_t CLK_DIV>
-  constexpr void init(TimerConfigBase<CLK_DIV> /*config*/) {
+  template<int64_t CLK_DIV, int64_t SOURCE_CLK_PERIOD_US>
+  constexpr void init(TimerConfigBase<CLK_DIV, SOURCE_CLK_PERIOD_US> config) {
     constexpr uint16_t TIMER_INPUT_DIVIDER = getTimerInputDivider<CLK_DIV>();
     // Choose SMCLK as clock source
     // Counting in Up Mode
-    TAxCTL = TASSEL_2 + TIMER_INPUT_DIVIDER + MC_0;
+    TAxCTL = TimerClockSource::getTASSELValue(config.clkSource) + TIMER_INPUT_DIVIDER + MC_0;
   }
   /**
    * Method to register a task to the timer. It will enable the interrupt of timer 0,
@@ -167,10 +190,10 @@ public:
    * Usually when calling the registerTask, the template parameters don't have to be completed,
    * since the compiler can deduce them from the TaskHandler type.
    */
-  template<int64_t CLK_DIV, uint64_t periodValue, typename Duration = std::chrono::microseconds>
-  constexpr void registerTask(const TimerConfigBase<CLK_DIV>& /*config*/, TaskHandler<periodValue, Duration>& task) {
+  template<int64_t CLK_DIV, int64_t SOURCE_CLK_PERIOD_US, uint64_t periodValue, typename Duration = std::chrono::microseconds>
+  constexpr void registerTask(const TimerConfigBase<CLK_DIV, SOURCE_CLK_PERIOD_US>& /*config*/, TaskHandler<periodValue, Duration>& task) {
     // Gets the timer0 compare value
-    constexpr uint16_t COMPARE_VALUE = calculateCompareValue<CLK_DIV, periodValue, Duration>();
+    constexpr uint16_t COMPARE_VALUE = calculateCompareValue<CLK_DIV, SOURCE_CLK_PERIOD_US, periodValue, Duration>();
 
     // For now only one task. This is work in progress.
     // Task is added to taskHandlers array
@@ -219,7 +242,7 @@ protected:
    * this doesn't result in a function call during runtime and it is
    * evaluated in compile time resulting in just a number in the program binary.
    */
-  template<int64_t CLK_DIV, uint64_t periodValue, typename Duration = std::chrono::microseconds>
+  template<int64_t CLK_DIV, int64_t SOURCE_CLK_PERIOD_US, uint64_t periodValue, typename Duration = std::chrono::microseconds>
   static constexpr uint16_t calculateCompareValue() {
     // Declares the duration given by the user and then converts it to microseconds
     // !! Duration is a type and periodValue is a value !!
@@ -232,7 +255,7 @@ protected:
      * So the compare value is basically the (period[us] / (1us * clockDiv)) - 1. The -1 because the counter starts in 0
      * !!!! Since all the values are constants, the division is evaluated in compile time. !!!!!
      */
-    constexpr int64_t COMPARE_VALUE = (PERIOD_IN_US.count() / CLK_DIV) - 1;
+    constexpr int64_t COMPARE_VALUE = (PERIOD_IN_US.count() / (CLK_DIV*SOURCE_CLK_PERIOD_US)) - 1;
 
     // Static assert so if the compareValue is bigger than 0xFFFF the compiler gives an error. This is not added as
     // instructions in the binary. One could verify that it works by calling "setupTimer0<5, std::chrono::seconds>();".

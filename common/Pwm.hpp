@@ -31,11 +31,11 @@ public:
   explicit Pwm(const OutputHandle& outputPin) : pwmOutput(outputPin) {}
 
   void init() const {
-    Timer<0>::getTimer().init(TIMER_CONFIG);
+    ///Timer<0>::getTimer().init(TIMER_CONFIG);
     pwmOutput.init();
     pwmOutput.disablePinResistor();
-    pwmOutput.setIoFunctionality(IOFunctionality::TA0_COMPARE_OUT2);
-    TA0CCTL2 = OUTMOD_3;
+    pwmOutput.setIoFunctionality(IOFunctionality::TA0_COMPARE_OUT1);
+    TA0CCTL1 = OUTMOD_3;
   }
 
   /**
@@ -45,7 +45,7 @@ public:
    * since the init configured TA0CTTL2, the compar value of the timer will
    * be in the pwmOutput.
    */
-  template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
+  /*template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
   void setPwmPeriod() {
     // Pointer of a newTask
     std::unique_ptr<TaskHandler<periodValue, Duration>> newTask =
@@ -55,20 +55,20 @@ public:
       Timer<0>::getTimer().deregisterTask(*currentTask);
     }
     // Register the newTask
-    Timer<0>::getTimer().registerTask(TIMER_CONFIG, *newTask);
+    //Timer<0>::getTimer().registerTask(TIMER_CONFIG, *newTask);
 
     // Update dutycycle, since comparator value changed.
     updateDutyCycleRegister();
 
     currentTask = std::move(newTask);  // Stores new task pointer.
-  }
+  }*/
 
   /**
    * Method to set the PWM duty cycle.
    * The duty cycle can be between 0 and 1000. it is equivalent to 0 and 100.0
    */
   bool setDutyCycle(uint32_t newDutyCycle) {
-    if (dutyCycle > MAX_DUTY_CYCLE) {
+    if (newDutyCycle > MAX_DUTY_CYCLE) {
       return false;
     }
     dutyCycle = newDutyCycle;
@@ -88,16 +88,16 @@ private:
     const uint32_t valueCCR0 = TACCR0;  // Reads current "period" register
     // const uint32_t halfDutyCycle = dutyCycle/2;
     //  Calculates the value of the CCR2 based on the value of the current CCR0 value.
-    const uint32_t valueCCR2 = (valueCCR0 * dutyCycle /*+ halfDutyCycle*/) / MAX_DUTY_CYCLE;
-    TA0CCR2 = valueCCR2;
+    const uint32_t valueCCR1 = (valueCCR0 * dutyCycle /*+ halfDutyCycle*/) / MAX_DUTY_CYCLE;
+    TA0CCR1 = valueCCR1;
   }
 
   static constexpr uint32_t MAX_DUTY_CYCLE = 1000;
 
   const OutputHandle pwmOutput;
 
-  static constexpr TimerConfigBase<8> TIMER_CONFIG{};
-  std::unique_ptr<TaskHandlerBase> currentTask;
+  //static constexpr TimerConfigBase<8, 1> TIMER_CONFIG{};
+  //std::unique_ptr<TaskHandlerBase> currentTask;
   uint32_t dutyCycle = 0;
 };
 
