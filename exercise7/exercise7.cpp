@@ -128,6 +128,7 @@ void pb5Callback(ButtonState /*buttonState*/) {
 }
 
 int main() {
+ Timer<0>::getTimer().stop();   // Stops the timer first to since after registers are in undefined state after watchdog
  initMSP();
 
  // VLOCLK is 12 kHz according to datasheet, page 276.
@@ -167,7 +168,7 @@ int main() {
  // Timer with CLK_DIV = 8 and since the period of SMCLK is 1us we also let the timer know that.
  constexpr TimerConfigBase<1, 1> TIMER_CONFIG(TimerClockSource::Option::SMCLK);
  Timer<0>::getTimer().init(TIMER_CONFIG);
- // Creates a 2s periodic task to evaluate the thermometer
+ // Creates a 1ms periodic task
  TaskHandler<1, std::chrono::milliseconds> displayTemperatureTask(&displaytemperatureTaskFunc, true);
  Timer<0>::getTimer().registerTask(TIMER_CONFIG, displayTemperatureTask);
 

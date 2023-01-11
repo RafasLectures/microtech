@@ -214,6 +214,7 @@ public:
 
   constexpr void stop() {
     resetRegisterBits(TAxCTL, static_cast<uint16_t>(MC_3));
+    resetRegisterBits(TAxCCTL0, static_cast<uint16_t>(CCIE));
   }
   /**
    * Method to deregister a task. But not yet implemented
