@@ -52,9 +52,10 @@
 
 //#define WATCHDOG_TIME_5_SECONDS
 #define CONTROL_WITH_PWM
+
 using namespace Microtech;
 
-// Button infinite loop
+// Button that causes deadlock
 Button PB5(GPIOs::getInputHandle<IOPort::PORT_1, static_cast<uint8_t>(3)>(), true);
 
 // Temperature control part
@@ -67,15 +68,7 @@ Pwm heatingResistorPwm(
 // NTC ADC value range: 320 - 570
 AdcHandle NTC_input = Adc::getInstance().getAdcHandle<5>();
 
-constexpr uint16_t NTC_MIN_VALUE = 320;
-constexpr uint16_t NTC_MAX_VALUE = 570;
-constexpr uint16_t NTC_INTERVAL_VALUE = (NTC_MAX_VALUE - NTC_MIN_VALUE)/5;
-
-constexpr uint16_t VALUE_LED1 = NTC_MIN_VALUE + NTC_INTERVAL_VALUE;
-constexpr uint16_t VALUE_LED2 = VALUE_LED1 + NTC_INTERVAL_VALUE;
-constexpr uint16_t VALUE_LED3 = VALUE_LED2 + NTC_INTERVAL_VALUE;
-constexpr uint16_t VALUE_LED4 = VALUE_LED3 + NTC_INTERVAL_VALUE;
-
+// LEDs to show temperature
 ShiftRegisterLED ledD1ToD4(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(4)>(),
                            GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(5)>(),
                            GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(0)>(),
@@ -85,10 +78,20 @@ constexpr OutputHandle redLed = GPIOs::getOutputHandle<IOPort::PORT_3, static_ca
 
 // Variable used to stay in infinite loop
 bool enterInfiniteLoop = false;
+
 uint8_t currentTemperatureRange = 1;
 uint16_t currentNtcValue = 0;
 
 void displaytemperatureTaskFunc() {
+    constexpr uint16_t NTC_MIN_VALUE = 320;
+    constexpr uint16_t NTC_MAX_VALUE = 570;
+    constexpr uint16_t NTC_INTERVAL_VALUE = (NTC_MAX_VALUE - NTC_MIN_VALUE)/5;
+
+    constexpr uint16_t VALUE_LED1 = NTC_MIN_VALUE + NTC_INTERVAL_VALUE;
+    constexpr uint16_t VALUE_LED2 = VALUE_LED1 + NTC_INTERVAL_VALUE;
+    constexpr uint16_t VALUE_LED3 = VALUE_LED2 + NTC_INTERVAL_VALUE;
+    constexpr uint16_t VALUE_LED4 = VALUE_LED3 + NTC_INTERVAL_VALUE;
+
     static uint16_t numInterrupts = 0;
     if(numInterrupts < 2000) {
         numInterrupts++;
@@ -132,10 +135,8 @@ int main() {
  BCSCTL3 |= LFXT1S_2;
 #ifdef WATCHDOG_TIME_5_SECONDS
  BCSCTL1 |= DIVA_1;  // Set ACKL divider to 2.
- constexpr int64_t ACKL_CLK_PERIOD_US = 166;
 #else
  BCSCTL1 |= DIVA_3;  // Set ACKL divider to 8.
- constexpr int64_t ACKL_CLK_PERIOD_US = 666;
 #endif
 
  constexpr OutputHandle greenLed = GPIOs::getOutputHandle<IOPort::PORT_1, static_cast<uint8_t>(0)>();
@@ -163,8 +164,8 @@ int main() {
  Adc::getInstance().init();
  Adc::getInstance().startConversion();
 
- // Timer with CLK_DIV = 1 and since the period of ACLK is 83us we also let the timer know that.
- constexpr TimerConfigBase<1, 1> TIMER_CONFIG(TimerClockSource::Option::SMCLK);  // helper class where states whats the CLK_DIV of the timer.
+ // Timer with CLK_DIV = 8 and since the period of SMCLK is 1us we also let the timer know that.
+ constexpr TimerConfigBase<1, 1> TIMER_CONFIG(TimerClockSource::Option::SMCLK);
  Timer<0>::getTimer().init(TIMER_CONFIG);
  // Creates a 2s periodic task to evaluate the thermometer
  TaskHandler<1, std::chrono::milliseconds> displayTemperatureTask(&displaytemperatureTaskFunc, true);
@@ -188,20 +189,24 @@ int main() {
 
 #ifndef CONTROL_WITH_PWM
    if(currentTemperatureRange < 4) {
+       // Sets heating on
        heatingResistorOnOffPin.setState(IOState::HIGH);
    } else {
+       // Sets heating off
        heatingResistorOnOffPin.setState(IOState::LOW);
    }
 #else
    if(currentTemperatureRange < 4) {
+       // Sets heating on
        heatingResistorPwm.setDutyCycle(500);
    } else {
+       // Sets heating off
        heatingResistorPwm.setDutyCycle(0);
    }
 #endif
-   serialPrint("Current NTC value: ");
-   serialPrintInt(NTC_input.getRawValue());
-   serialPrintln("");
+   //serialPrint("Current NTC value: ");
+   //serialPrintInt(NTC_input.getRawValue());
+   //serialPrintln("");
  }
 
  return 0;
@@ -213,9 +218,7 @@ __interrupt void Port_1_ISR(void) {
  // Get bit 3 => 0000 1000 = 0x08
  volatile const uint8_t pendingInterrupt = getRegisterBits(P1IFG, static_cast<uint8_t>(0x08), static_cast<uint8_t>(3));
 
- //if (pendingInterrupt == 1) {
-    PB5.getDebouncer().pinStateChanged();
- //}
+ PB5.getDebouncer().pinStateChanged();
 
  const uint8_t clearFlag = (pendingInterrupt << 0x03);
  resetRegisterBits(P1IFG, clearFlag);  // clear interrupt flag
