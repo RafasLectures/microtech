@@ -14,6 +14,7 @@
 #define COMMON_BUTTON_HPP_
 
 #include "GPIOs.hpp"
+#include "Debouncer.hpp"
 
 namespace Microtech {
 
@@ -34,29 +35,30 @@ enum class ButtonState {
  * also subscribe to the buttons state changes instead of polling the button state
  * all the time.
  *
- * @tparam port Port of the pin that the button is connected to.
- * @tparam Pin Pin that the button is connected to.
- *
  * @note it could be nice to find a way to remove these template parameters from
  * the button and let someone set the pin with a function.
  *
  */
-template<typename INPUT_TYPE>
 class Button {
 public:
+  typedef void (*StateCallback)(ButtonState);
+
   /**
    * Class constructor.
    * One can say if it is inverted logic:
    * 0 = ButtonState::PRESSED
    * 1 = ButtonState::RELEASED
    */
-  constexpr Button(const INPUT_TYPE& input, bool invertedLogic) : inputPin(), invertedLogic(invertedLogic) {}
+  constexpr Button(const InputHandle& newInputHandle, bool invertedLogic) : inputHandle(newInputHandle), invertedLogic(invertedLogic), debouncer(*this, &Button::pinStateChanged) {}
 
   /**
    * Initialize the button. Gets state of the input pin and sets it as its state.
    */
   void init() noexcept {
-    setState(evaluateButtonState(inputPin.getState()));
+    inputHandle.init();
+    inputHandle.enablePinResistor(IOResistor::PULL_UP);
+    setState(evaluateButtonState(inputHandle.getState()));
+    inputHandle.enableInterrupt();
   }
 
   /**
@@ -73,33 +75,8 @@ public:
    * to constantly perform the pulling of the button state and then perform
    * debounce.
    */
-  void performDebounce() noexcept {
-    // Polls current state from the inputPin
-    const IOState currentPinState = inputPin.getState();
+  void evaluateDebounce() noexcept {
 
-    // Makes sure that the current state of the pin didn't change from
-    // one iteration to another.
-    if (previousPinState == currentPinState) {
-      if (debounceCounter < DEBOUNCE_MAX) {
-        debounceCounter++;
-      } else {
-        // If the debounce counter is exceeded, we set the newButton State
-        setState(evaluateButtonState(currentPinState));
-      }
-    } else {
-      // If the pin state changed, then we reset the counter and set the previous
-      // pin state as the current state, so we can perform the debounce in
-      // the next iteration
-      previousPinState = currentPinState;
-      debounceCounter = 0;
-    }
-  }
-
-  /**
-   *  Method to enable the interrupt on the pin that the button is connected to.
-   */
-  void enablePinInterrupt() {
-    inputPin.enableInterrupt();
   }
 
   /**
@@ -108,11 +85,20 @@ public:
    *
    * @param callbackPtr pointer to the callback function
    */
-  void registerStateChangeCallback(void (*callbackPtr)(ButtonState)) noexcept {
+  void registerStateChangeCallback(StateCallback callbackPtr) noexcept {
     stateCallback = callbackPtr;
   }
 
+  Debouncer<Button>& getDebouncer() {
+      return debouncer;
+  }
+
 private:
+
+  void pinStateChanged() {
+      setState(evaluateButtonState(IOState::LOW));
+  }
+
   /**
    * Method to set the state of the button. Whenever a new state is set
    * it is also responsible for calling the button's callback
@@ -156,7 +142,7 @@ private:
         case IOState::HIGH: return ButtonState::RELEASED;
       };
     } else {
-      switch (inputPin.getState()) {
+      switch (pinState) {
         case IOState::LOW: return ButtonState::RELEASED;
         default:
         case IOState::HIGH: return ButtonState::PRESSED;
@@ -164,22 +150,18 @@ private:
     }
   }
 
-  const INPUT_TYPE& inputPin;  ///< Input pin of the button
+  const InputHandle inputHandle;  ///< Input pin of the button
   /**
    * If the logic of the button is inverted. Meaning that:
    * isInverted true:
    *      IOState::LOW = ButtonState::PRESSED and IOState::HIGH = ButtonState::RELEASED
    */
   const bool invertedLogic;
-  ButtonState state;                             ///< Current state of the button
-  void (*stateCallback)(ButtonState) = nullptr;  ///< Function pointer to the state callback
-  /**
-   * It holds the previous inputPin state. Used by the debounce function
-   */
-  IOState previousPinState;
-  uint16_t debounceCounter = 0;  ///< Holds the counter for the debounce.
-  const uint16_t DEBOUNCE_MAX =
-    5;  ///< The numbers of time the pin has to be in the same state in order for the button to change state
+  ButtonState state = ButtonState::RELEASED;     ///< Current state of the button
+  StateCallback stateCallback = nullptr;         ///< Function pointer to the state callback
+
+
+  Debouncer<Button> debouncer;
 };
 
 } /* namespace Microtech */

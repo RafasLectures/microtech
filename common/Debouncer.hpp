@@ -14,7 +14,7 @@ public:
   typedef void (CLASS_TYPE::*FuncPointer)();  ///< Definition of type of a function pointer from the chosen class
 
   Debouncer() = delete;
-  explicit Debouncer(CLASS_TYPE& classRef, FuncPointer classFuncPtr)
+  constexpr explicit Debouncer(CLASS_TYPE& classRef, FuncPointer classFuncPtr)
     : objRef(classRef), funcPtr(classFuncPtr) {}
 
   /**
@@ -35,7 +35,7 @@ public:
   /**
   * Method called by the interrupt when the button is pushed
    */
-  void buttonWasPushed() {
+  void pinStateChanged() {
     buttonPushed = true;
     if (allowTrigger == true) {                        // If the trigger is allowed
       if (funcPtr != nullptr) {         // Make sure function pointer is not null

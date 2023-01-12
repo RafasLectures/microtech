@@ -24,4 +24,4 @@ add_subdirectory(exercise3)
 add_subdirectory(exercise4)
 add_subdirectory(exercise5)
 add_subdirectory(exercise6)
-
+add_subdirectory(exercise7)

@@ -11,3 +11,5 @@ As soon as an exercise is finished, its commit will be tagged.
 * Exercise 3 - Interfacing External ICs
 * Exercise 4 - Analog-To-Digital Converters
 * Exercise 5 - Pulse Width Modulation
+* Exercise 6 - Dynamic Circuit Configuration
+* Exercise 7 - Watchdog Timers & Timer Modules

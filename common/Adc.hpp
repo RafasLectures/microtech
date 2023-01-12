@@ -5,7 +5,7 @@
 #include "helpers.hpp"
 #include <msp430g2553.h>
 #include <cstdint>
-#include <map>
+#include <array>
 
 namespace Microtech {
 
@@ -66,6 +66,13 @@ public:
    * Method that initialized the adc
    */
   void init() noexcept {
+    // Make sure DTC is disabled
+    ADC10DTC0 = 0;
+    ADC10DTC1 = 0;
+
+    // Make sure the ADC is not running.
+    ADC10CTL0 &= ~ENC;
+    while (ADC10CTL1 & ADC10BUSY){}
     // ADC10 on
     // sample and hold time = 16 ADC Clock cycles = 16*0.2us = 3.2 us
     // Multiple sample and conversion on.
@@ -73,10 +80,10 @@ public:
 
     // Repeat-sequence-of-channels mode
     // CLk source = ADC10OSC => around 5 MHz
-    // no clock division
+    // Clock division by 8, to make sure we can do the transfer with DTC for the channel
     // Source of sample and hold from ADC10SC bit
     // Always start sampling from the ADC7, since we are populating the adcValues array with DTC
-    ADC10CTL1 = CONSEQ_3 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_7;
+    ADC10CTL1 = CONSEQ_3 + ADC10SSEL_0 + ADC10DIV_7 + SHS_0 + INCH_7;
 
     // Setup Data transfer control 0
     // The basic idea is that everytime the ADC does a conversion, the
