@@ -74,16 +74,20 @@ public:
     ADC10CTL0 &= ~ENC;
     while (ADC10CTL1 & ADC10BUSY){}
     // ADC10 on
-    // sample and hold time = 16 ADC Clock cycles = 16*0.2us = 3.2 us
+    // sample and hold time = 16 ADC Clock cycles = 8*0.2us = 1.6 us
     // Multiple sample and conversion on.
-    ADC10CTL0 = ADC10ON + ADC10SHT_2 + MSC;
+    ADC10CTL0 = ADC10ON + ADC10SHT_1 + MSC;
 
     // Repeat-sequence-of-channels mode
     // CLk source = ADC10OSC => around 5 MHz
-    // Clock division by 8, to make sure we can do the transfer with DTC for the channel
+    // DTC can take up to 4 MCKL cycles (4 us), so the sample and hold time should be
+    // at least 4us.
+    // sample and hold time = 16 ADC Clock cycles = 8*0.2us = 1.6 us
+    // Convert time = 13 ADC Clock cycles = 13*0.2us = 2.6us
+    // Total conversion of 1 channel = Sample and hold + convert time = 1.6us + 2.6us = 4.2us
     // Source of sample and hold from ADC10SC bit
     // Always start sampling from the ADC7, since we are populating the adcValues array with DTC
-    ADC10CTL1 = CONSEQ_3 + ADC10SSEL_0 + ADC10DIV_7 + SHS_0 + INCH_7;
+    ADC10CTL1 = CONSEQ_3 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_7;
 
     // Setup Data transfer control 0
     // The basic idea is that everytime the ADC does a conversion, the

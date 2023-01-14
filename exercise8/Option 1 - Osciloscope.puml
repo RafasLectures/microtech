@@ -1,0 +1,90 @@
+@startuml
+'https://plantuml.com/activity-diagram-beta
+|a| Infinite Loop
+|b| Timer Interrupt (1-10 ms)
+|c| Button Interrupt
+
+fork
+|a|
+-[hidden]->
+start
+
+:Initialize Microcontroller and Peripherals;
+floating note
+ADC is configured to use DTC, so it
+is always sampling all channels (all in hardware,
+no need to sample in software).
+Time for one sample in one channel is 4.2us.
+Using DTC if I sample all channels it takes 33.6us.
+So there will be a new value
+for one specific channel in a buffer every 33.6us.
+That should give enough accuracy.
+endnote
+partition While true{
+
+if (New Osciloscope Value) then (true)
+:Send new ADC reading via Serial port;
+else (false)
+endif
+}
+stop
+fork again
+|b|
+-[hidden]->
+start
+partition "Process of Oscilloscope" {
+if (Time to execute Osciloscope) then (true)
+    :Get raw value from ADC;
+    :Write to global variable to be read by infinite loop;
+else (false)
+endif
+}
+
+partition Sample of PB1-4{
+:Sample button values from shift register;
+if(Button changed state) then (true)
+:Based on pressed button set Signal Generator to
+switch waveform or change frequency;
+else (false)
+endif
+}
+partition Process of Signal generator{
+if (Time to execute Signal Generator) then (true)
+    switch (Signal shape)
+    case (sin)
+        :Generate new sine output;
+    case (trap)
+        :Generate new trapezoidal output;
+    case (rect)
+        :Generate new rect output;
+    endswitch
+    ->//Values between 0 and 1000//;
+    :Multiply result by configured maximum amplitude;
+    ->//Result between 0 and 1000000//;
+    :Calculate value to be written in PWM register to set duty cycle
+    based on current PWM frequency using rate of previous multiplication;
+    floating note left
+    The raw signal will always go from 0 to 1000.
+    The final signal amplitude (after amplitude set by user)
+    will always go from 0 to 1000000.
+    Then we just need to set the duty cycle
+    which can go from 0 to 100%, where 100% is 1000000
+    endnote
+    :Set new PWM duty cycle;
+else (false)
+endif
+}
+stop
+
+fork again
+|c|
+-[hidden]->
+start
+:Identify pressed button;
+:Based on pressed button set Signal Generator to
+increase or decrease amplitude.
+Amplitude is from 0 to 1000 (100.0);
+stop
+
+
+@enduml
