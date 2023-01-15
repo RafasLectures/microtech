@@ -55,3 +55,6 @@ custom-compiler.yaml
 # CCS Project
 .cproject
 .ccproject
+
+# MacOS files
+*/.DS_Store
