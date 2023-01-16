@@ -1,7 +1,7 @@
 /*****************************************************************************
  * @file                    exercise8.cpp
  * @author                  Rafael Andrioli Bauer
- * @date                    11.01.2023
+ * @date                    15.01.2023
  * @matriculation number    5163344
  * @e-mail contact          abauer.rafael@gmail.com
  *
@@ -24,7 +24,7 @@
  * Theory answers: None
  *
  * Tasks completed:
- *
+ *      Implemented project
  *
  * @note    The project was exported using CCS 12.1.0.00007
  ******************************************************************************/
@@ -79,6 +79,8 @@ void timerInterrupt() {
   _iq15 nextDatapoint = signalGenerator.getNextDatapoint();
   // Print values of Oscilloscope
   serialPrintInt(adcCH1.getRawValue());
+  //serialPrint(" ");
+  //serialPrintInt(_IQ15int(nextDatapoint)); // For debugging purposes
   serialPrintln("");
 
   // Get the current PB values of the shift register (PB1-4)
@@ -91,19 +93,19 @@ void timerInterrupt() {
 
   // Check if buttons have been pressed and perform debounce
   if (PBvalues & (0x01) && !PB1debounceCnt) {  // PB1
-    signalGenerator.nextSignalShape();
-    PB1debounceCnt = 5;                                    // Start debouncer counter
-  } else if (PBvalues & (0x01 << 1) && !PB2debounceCnt) {  // PB2
     signalGenerator.previousSignalShape();
-    PB2debounceCnt = 5;
+    PB1debounceCnt = 10;                                    // Start debouncer counter
+  } else if (PBvalues & (0x01 << 1) && !PB2debounceCnt) {  // PB2
+    signalGenerator.nextSignalShape();
+    PB2debounceCnt = 10;
   }
 
   if (PBvalues & (0x01 << 2) && !PB3debounceCnt) {  // PB3
-    signalGenerator.increaseFrequency();
-    PB3debounceCnt = 5;
-  } else if (PBvalues & (0x01 << 3) && !PB4debounceCnt) {  // PB4
     signalGenerator.decreaseFrequency();
-    PB4debounceCnt = 5;
+    PB3debounceCnt = 10;
+  } else if (PBvalues & (0x01 << 3) && !PB4debounceCnt) {  // PB4
+    signalGenerator.increaseFrequency();
+    PB4debounceCnt = 10;
   }
 
   decreaseCounter(PB1debounceCnt);

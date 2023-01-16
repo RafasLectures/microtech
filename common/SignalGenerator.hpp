@@ -111,10 +111,9 @@ public:
    * @return next point of the Sinusoidal signal
    */
   _iq15 getNextPoint(SignalProperties& signal) noexcept override {
-    2
-      // sin gives value from -1 to 1, so we add 1 to get the output from 0 to 2
-      const _iq15 sineValue = _IQ15sin(signal.getCurrentPhase()) + _IQ15(1);
-    constexpr _iq15 HALF_OF_MAX_AMPLITUDE = _IQ15div(MAXIMUM_AMPLITUDE, _IQ15(2.0));
+    // sin gives value from -1 to 1, so we add 1 to get the output from 0 to 2
+    const _iq15 sineValue = _IQ15sin(signal.getCurrentPhase()) + _IQ15(1);
+    const _iq15 HALF_OF_MAX_AMPLITUDE = _IQ15div(MAXIMUM_AMPLITUDE, _IQ15(2.0));
 
     // Multiply by 50.0 since our maximum value is 100.0 and the maximum from the sine is 2.
     const _iq15 sineScaled = _IQ15mpy(sineValue, HALF_OF_MAX_AMPLITUDE);
@@ -140,17 +139,17 @@ public:
   _iq15 getNextPoint(SignalProperties& signal) noexcept override {
     const _iq15 currentPhase = signal.getCurrentPhase();
     const _iq15 slope = getSlope();
-    constexpr _iq15 yIntercept = getYIntercept();
+    const _iq15 yIntercept = getYIntercept();
 
     // Use a switch case to check for the current phase
     switch (getCurrentPhase(currentPhase)) {
-      case PHASE_1: return slope * currentPhase + yIntercept;
-      case PHASE_2: return MAXIMUM_AMPLITUDE;
-      case PHASE_3:
+      case Phase::PHASE_1: return _IQ15mpy(slope, currentPhase) + yIntercept;
+      case Phase::PHASE_2: return MAXIMUM_AMPLITUDE;
+      case Phase::PHASE_3:
         // The last constant value has to be added to compensate since the angle is higher
-        return slope * currentPhase + yIntercept + _IQ(300.0);
-      case PHASE_4: return _IQ15(0.0);
-      case PHASE_5: return slope * currentPhase + yIntercept + _IQ(500.0);
+        return _IQ15mpy(_IQ15(-1),_IQ15mpy(currentPhase,slope)) + yIntercept + _IQ15(300.0);
+      case Phase::PHASE_4: return _IQ15(0.0);
+      case Phase::PHASE_5: return _IQ15mpy(slope, currentPhase) + yIntercept - _IQ15(600.0);
       default: return _IQ15(0.0);
     }
   }
@@ -173,35 +172,42 @@ private:
   }
 
   // define a struct to store the phase intervals
-  struct PhaseInterval {
+  struct IntervalPhases {
     _iq15 start;
     _iq15 end;
   };
 
-  const PhaseInterval PHASE_1 = {DEG0_IN_RAD, DEG30_IN_RAD};
-  const PhaseInterval PHASE_2 = {DEG30_IN_RAD, DEG150_IN_RAD};
-  const PhaseInterval PHASE_3 = {DEG150_IN_RAD, DEG210_IN_RAD};
-  const PhaseInterval PHASE_4 = {DEG210_IN_RAD, DEG330_IN_RAD};
-  const PhaseInterval PHASE_5 = {DEG330_IN_RAD, DEG360_IN_RAD};
+  enum class Phase {
+      PHASE_1,
+      PHASE_2,
+      PHASE_3,
+      PHASE_4,
+      PHASE_5
+  };
+  const IntervalPhases PHASE_1 = {DEG0_IN_RAD, DEG30_IN_RAD};
+  const IntervalPhases PHASE_2 = {DEG30_IN_RAD, DEG150_IN_RAD};
+  const IntervalPhases PHASE_3 = {DEG150_IN_RAD, DEG210_IN_RAD};
+  const IntervalPhases PHASE_4 = {DEG210_IN_RAD, DEG330_IN_RAD};
+  const IntervalPhases PHASE_5 = {DEG330_IN_RAD, DEG360_IN_RAD};
 
   /**
    * @brief Get the current phase of the signal
    * @param[in] currentPhase The current phase of the signal
    * @return The current phase of the signal
    */
-  PhaseInterval getCurrentPhase(const _iq15 currentPhase) const {
+  Phase getCurrentPhase(const _iq15 currentPhase) const {
     if (currentPhase >= PHASE_1.start && currentPhase < PHASE_1.end) {
-      return PHASE_1;
+      return Phase::PHASE_1;
     } else if (currentPhase >= PHASE_2.start && currentPhase < PHASE_2.end) {
-      return PHASE_2;
+      return Phase::PHASE_2;
     } else if (currentPhase >= PHASE_3.start && currentPhase < PHASE_3.end) {
-      return PHASE_3;
+      return Phase::PHASE_3;
     } else if (currentPhase >= PHASE_4.start && currentPhase < PHASE_4.end) {
-      return PHASE_4;
+      return Phase::PHASE_4;
     } else if (currentPhase >= PHASE_5.start && currentPhase < PHASE_5.end) {
-      return PHASE_5;
+      return Phase::PHASE_5;
     } else {
-      return PHASE_1;
+      return Phase::PHASE_1;
     }
   }
 
@@ -364,14 +370,14 @@ private:
     _IQ15(1.0);  ///< Represents the amplitude of the output signal as a percentage. It is initialized to 100%.
   uint8_t shapeIndex = 0;  ///< Represents the current shape of the active signal. It is initialized to 0 = SINUSOIDAL.
 
-  constexpr _iq15 MAXIMUM_FREQUENCY =
+  static constexpr _iq15 MAXIMUM_FREQUENCY =
     _IQ15(5.0);  ///< Represents the maximum frequency that the signal generator can output. It is initialized to 5 Hz.
-  constexpr _iq15 MINIMUM_FREQUENCY = _IQ15(
+  static constexpr _iq15 MINIMUM_FREQUENCY = _IQ15(
     0.5);  ///< Represents the minimum frequency that the signal generator can output. It is initialized to 0.5 Hz.
-  constexpr _iq15 FREQUENCY_STEP =
+  static constexpr _iq15 FREQUENCY_STEP =
     _IQ15(0.5);  ///< Represents the step size for frequency changes. It is initialized to 0.5 Hz.
 
-  constexpr _iq15 AMPLITUDE_STEP =
+  static constexpr _iq15 AMPLITUDE_STEP =
     _IQ15(0.05);  ///< Represents the step size for amplitude changes. It is initialized to 0.05 (5%).
 };
 

@@ -1,2 +1,1 @@
-Nice exercise. Nice to be able to use what we learned throughout the course.
-It was hard for me to find if it is too abstract or not. I hope the diagram is understandable
+Nice exercise. My only struggle was to generate the sine wave, but then I remembered TI has this IQMathLibrary.
