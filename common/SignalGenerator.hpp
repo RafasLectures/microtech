@@ -1,10 +1,12 @@
 #ifndef MICROTECH_SIGNALGENERATOR_HPP
 #define MICROTECH_SIGNALGENERATOR_HPP
 
-#include <cmath>
+#include "IQmathLib.h"
 #include <cstdint>
 
 namespace Microtech {
+
+#define PI      3.1415926536
 
 /**
  * @class SignalProperties
@@ -12,6 +14,7 @@ namespace Microtech {
  */
 class SignalProperties {
 public:
+  using PhaseType = _iq15;
   /**
    * @brief deleted default constructor
    */
@@ -31,8 +34,10 @@ public:
    * @param[in] newFrequency new frequency of the signal
    */
   void setNewFrequency(const uint16_t newFrequency) {
-    currentFrequency = newFrequency;
-    phaseStep = PI_TIMES_2*currentFrequency/samplingFreqHz;
+    currentFrequency = _IQ15(newFrequency);
+    // 2*pi*currentFrequency/samplingFreqHz
+    const _iq15 test = _IQ15mpy(_IQ15(2*PI),currentFrequency);
+    phaseStep = _IQ15div(test, _IQ15(samplingFreqHz));
   }
 
   /**
@@ -40,23 +45,26 @@ public:
    */
   void increasePhase() noexcept {
     // calculate new phase and keep it within 0 and 2pi.
-    currentPhase = fmod(currentPhase + phaseStep, PI_TIMES_2);
+    currentPhase = (currentPhase + phaseStep)%_IQ15(2*PI);
   }
 
   /**
    * @brief get the current phase of the signal
    * @return current phase of the signal
    */
-  float getCurrentPhase() const noexcept {
+  PhaseType getCurrentPhase() const noexcept {
     return currentPhase;
+  }
+
+  uint16_t getCurrentFrequency() const noexcept {
+      return _IQ15int(currentFrequency);
   }
 
 private:
   const uint16_t samplingFreqHz; ///< Sampling frequency of the signal
-  uint16_t currentFrequency = 0; ///< Current frequency of the signal
-  float phaseStep = 0;  ///< Current phase step of the signal
-  float currentPhase = 0; ///< Current phase of the signal
-  static constexpr float PI_TIMES_2 = 2*M_PI; ///< 2*PI constant
+  _iq15 currentFrequency = 0; ///< Current frequency of the signal
+  PhaseType phaseStep = 0;  ///< Current phase step of the signal
+  PhaseType currentPhase = 0; ///< Current phase of the signal
 };
 
 
@@ -81,7 +89,7 @@ public:
    * @param[in] signal Signal properties
    * @return next point of the signal
    */
-  virtual uint64_t getNextPoint(SignalProperties& signal) noexcept = 0;
+  virtual _iq15 getNextPoint(SignalProperties& signal) noexcept = 0;
 };
 
 /**
@@ -99,13 +107,13 @@ public:
    * @param[in] signal Signal properties
    * @return next point of the Sinusoidal signal
    */
-  uint64_t getNextPoint(SignalProperties& signal) noexcept override {
+  _iq15 getNextPoint(SignalProperties& signal) noexcept override {
     // value is between 0 and 1
     // sin gives value from -1 to 1, so we add 1 to get the output from 0 to 2
-    const float value = sin(signal.getCurrentPhase()) + 1;
+    const _iq15 value = _IQ15sin(signal.getCurrentPhase()) + _IQ15(1);
 
-    // Multiply by 500 since our maximum value is 1000 and the maximum from the sine is 2.
-    const uint64_t multiplication = value * 500;
+    // Multiply by 50.0 since our maximum value is 100.0 and the maximum from the sine is 2.
+    const _iq15 multiplication = _IQ15mpy(value, _IQ15(50.0));
     return multiplication;
   }
 };
@@ -125,29 +133,32 @@ public:
    * @param[in] signal Signal properties
    * @return next point of the Trapezoidal signal
    */
-  uint64_t getNextPoint(SignalProperties& signal) noexcept override{
-    const float currentPhase = signal.getCurrentPhase();
-    constexpr float DEG30_IN_RAD = M_PI/6;  // 30 degrees in radians
-    constexpr float DEG60_IN_RAD = M_PI/3;  // 60 degrees in radians
-    constexpr float DEG120_IN_RAD = 2*M_PI/3; // 120 degrees in radians
-    constexpr float DEG150_IN_RAD = DEG30_IN_RAD + DEG120_IN_RAD; // 150 degrees in radians
-    constexpr float DEG210_IN_RAD = DEG150_IN_RAD + DEG60_IN_RAD; // 210 degrees in radians
-    constexpr float DEG330_IN_RAD = DEG210_IN_RAD + DEG120_IN_RAD; // 330 degrees in radians
+  _iq15 getNextPoint(SignalProperties& signal) noexcept override{
+    const _iq15 currentPhase = signal.getCurrentPhase();
+    constexpr _iq15 DEG30_IN_RAD = _IQ15(PI/6);  // 30 degrees in radians
+    constexpr _iq15 DEG60_IN_RAD = _IQ15(PI/3);  // 60 degrees in radians
+    constexpr _iq15 DEG120_IN_RAD = _IQ15(2*PI/3); // 120 degrees in radians
+    constexpr _iq15 DEG150_IN_RAD = DEG30_IN_RAD + DEG120_IN_RAD; // 150 degrees in radians
+    constexpr _iq15 DEG210_IN_RAD = DEG150_IN_RAD + DEG60_IN_RAD; // 210 degrees in radians
+    constexpr _iq15 DEG330_IN_RAD = DEG210_IN_RAD + DEG120_IN_RAD; // 330 degrees in radians
 
-    constexpr float slope = 1000/DEG60_IN_RAD;
+    const _iq15 slope = _IQ15div(_IQ15(100.0),DEG60_IN_RAD);
 
-    uint64_t retVal = 0;
+    _iq15 retVal = 0;
     // check for the current phase
+
     if (currentPhase < DEG30_IN_RAD) {
-      retVal = currentPhase*slope + 500;
+      retVal = _IQ15mpy(currentPhase,slope) + _IQ15(50.0);
     } else if(currentPhase > DEG30_IN_RAD && currentPhase < DEG150_IN_RAD) {
-      retVal = 1000;
+      retVal = _IQ15(100.0);
     } else if(currentPhase > DEG150_IN_RAD && currentPhase < DEG210_IN_RAD) {
-      retVal = -currentPhase*slope + 3500;
+      //retVal = -currentPhase*slope + 3500;
+      retVal = _IQ15mpy(_IQ15(-1),_IQ15mpy(currentPhase,slope)) + _IQ15(350.0);
     } else if(currentPhase > DEG210_IN_RAD && currentPhase < DEG330_IN_RAD) {
-      retVal = 0;
+      retVal = _IQ15(0);
     } else if(currentPhase > DEG330_IN_RAD) {
-      retVal = currentPhase*slope - 5500;
+      //retVal = currentPhase*slope - 5500;
+      retVal = _IQ15mpy(currentPhase,slope) - _IQ15(550.0);
     }
     return retVal;
   }
@@ -168,12 +179,12 @@ public:
    * @param[in] signal Signal properties
    * @return next point of the Rectangular signal
    */
-  uint64_t getNextPoint(SignalProperties& signal) noexcept override{
-    uint64_t retVal = 0;
-    if (signal.getCurrentPhase() < M_PI) {
-      retVal = 1000;
+  _iq15 getNextPoint(SignalProperties& signal) noexcept override{
+    _iq15 retVal = 0;
+    if (signal.getCurrentPhase() < _IQ15(PI)) {
+      retVal = _IQ15(100.0);
     } else {
-      retVal = 0;
+      retVal = _IQ15(0);
     }
     return retVal;
   }
@@ -205,9 +216,9 @@ public:
    * @brief get the next data point of the active signal
    * @return next data point
    */
-  uint64_t getNextDatapoint() noexcept{
+  _iq15 getNextDatapoint() noexcept{
     signalProperties.increasePhase();
-    return activeSignal->getNextPoint(signalProperties);
+    return _IQ15mpy(activeSignal->getNextPoint(signalProperties), outputAmplitudePercentage) + _IQ15mpy(_IQ15(1.0) - outputAmplitudePercentage, _IQ15(100.0));
   }
 
   /**
@@ -236,12 +247,52 @@ public:
     }
   }
 
+  void nextSignalShape() {
+      if(shapeIndex < 2) {
+          shapeIndex++;
+          setActiveSignalShape((Shape)shapeIndex);
+      }
+  }
+
+  void previousSignalShape() {
+    if(shapeIndex > 0) {
+        shapeIndex--;
+        setActiveSignalShape((Shape)shapeIndex);
+    }
+  }
+
+  void increaseFrequency() {
+      uint16_t currentFrequency = signalProperties.getCurrentFrequency();
+      if(currentFrequency < 5) {
+          signalProperties.setNewFrequency(currentFrequency + 1);
+      }
+  }
+
+  void decreaseFrequency() {
+      uint16_t currentFrequency = signalProperties.getCurrentFrequency();
+      if(currentFrequency > 1) {
+          signalProperties.setNewFrequency(currentFrequency - 1);
+      }
+  }
+
+  void increaseAmplitude() {
+      if(outputAmplitudePercentage < _IQ15(1.0)) {
+          outputAmplitudePercentage += _IQ15(0.05);
+      }
+  }
+  void decreaseAmplitude() {
+        if(outputAmplitudePercentage > _IQ15(0.0)) {
+            outputAmplitudePercentage -= _IQ15(0.05);
+        }
+    }
 private:
   Sinusoidal sinusoidal; ///< Sinusoidal signal object
   Trapezoidal trapezoidal; ///< Trapezoidal signal object
   Rectangular rectangular; ///< Rectangular signal object
   iSignalType* activeSignal; ///< pointer to the active signal
   SignalProperties signalProperties; ///< Signal Properties object
+  _iq15 outputAmplitudePercentage = _IQ15(1.0);
+  uint8_t shapeIndex = 0;
 };
 
 

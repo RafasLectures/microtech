@@ -5,39 +5,21 @@
 * @matriculation number    5163344
 * @e-mail contact          abauer.rafael@gmail.com
 *
-* @brief   Exercise 9 - Project Option 1 - Osciloscope and Signal generator
+* @brief   Exercise 9 - Project Option 1 - Oscilloscope and Signal generator
 *
 * Description:
 *
 * Pin connections:
-*       PB5 <-> CON3:P1.3
-*       LED Green <-> CON3:P1.0
-*       X3 <-> X10
-*       JP4
-*       X4 <-> CON3:P3.5
-*       X5 <-> CON3:P3.4
-*       LED Red <-> CON3:P3.2
-*       U_NTC <-> CON3:P1.5
-*
+*       CON3:P1.3 <-> DAC_OUT
+*       JP5 -> INT
+*       CON3:P3.6 <-> DAC_IN
+*       CON3:P1.5 <-> PB5
+*       CON3:P1.6 <-> PB6
 *
 * Theory answers: None
 *
 * Tasks completed:
-*  Task 1
-*         [x] Cause deadlock after 5.5s              (x/2,0 pt.)
-*  Task 2
-*    a)
-*         [x] Modify deadlock after 21.9s            (x/1,0 pt.)
-*    b)
-*         [x] Determine NTC range                    (x/1,0 pt.)
-*    c)
-*         [x] Thermometer with 0.5Hz refresh rate    (x/2,0 pt.)
-*    d)
-*         [x] Controller with X5                     (x/1,0 pt.)
-*    e)
-*         [x] Controller with X4                     (x/2,0 pt.)
-*  Task 3
-*         [x] feedback.txt                           (x/1.0 pt.)
+*
 *
 * @note    The project was exported using CCS 12.1.0.00007
 ******************************************************************************/
@@ -49,100 +31,103 @@
 #include "ShiftRegister.hpp"
 #include "Timer.hpp"
 #include "Pwm.hpp"
+#include "SignalGenerator.hpp"
 
 
 using namespace Microtech;
 
-// Button that causes deadlock
-Button PB5(GPIOs::getInputHandle<IOPort::PORT_1, static_cast<uint8_t>(3)>(), true);
+// Buttons
+Button btnDecreaseAmplitude(GPIOs::getInputHandle<IOPort::PORT_1, static_cast<uint8_t>(5)>(), true);
+Button btnIncreaseAmplitude(GPIOs::getInputHandle<IOPort::PORT_1, static_cast<uint8_t>(6)>(), true);
 
-// Temperature control part
+// Oscilloscope channel
+AdcHandle adcCH1 = Adc::getInstance().getAdcHandle<0>();
 
-constexpr OutputHandle heatingResistorOnOffPin = GPIOs::getOutputHandle<IOPort::PORT_3, static_cast<uint8_t>(4)>();
+SignalGenerator signalGenerator(50);
+Pwm DAC_IN(GPIOs::getOutputHandle<IOPort::PORT_3, static_cast<uint8_t>(6)>());  // Create handle of PWM for pin 6 from port 3
 
-Pwm heatingResistorPwm(
-  GPIOs::getOutputHandle<IOPort::PORT_3, static_cast<uint8_t>(5)>());  // Create handle of PWM for pin 6 from port 5
-#endif
-// NTC ADC value range: 320 - 570
-AdcHandle NTC_input = Adc::getInstance().getAdcHandle<5>();
+constexpr ShiftRegisterPB pb1to4(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(4)>(),
+                       GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(5)>(),
+                       GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(2)>(),
+                       GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(3)>(),
+                       GPIOs::getInputHandle<IOPort::PORT_2, static_cast<uint8_t>(7)>());
 
-// LEDs to show temperature
-ShiftRegisterLED ledD1ToD4(GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(4)>(),
-                           GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(5)>(),
-                           GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(0)>(),
-                           GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(1)>(),
-                           GPIOs::getOutputHandle<IOPort::PORT_2, static_cast<uint8_t>(6)>());
-constexpr OutputHandle redLed = GPIOs::getOutputHandle<IOPort::PORT_3, static_cast<uint8_t>(2)>();
+uint16_t adcValue = 0;
+uint16_t setpoint = 0;
+bool newValue = false;
 
-// Variable used to stay in infinite loop
-bool enterInfiniteLoop = false;
-
-uint8_t currentTemperatureRange = 1;
-uint16_t currentNtcValue = 0;
-
-void displaytemperatureTaskFunc() {
-    constexpr uint16_t NTC_MIN_VALUE = 320;
-    constexpr uint16_t NTC_MAX_VALUE = 570;
-    constexpr uint16_t NTC_INTERVAL_VALUE = (NTC_MAX_VALUE - NTC_MIN_VALUE)/5;
-
-    constexpr uint16_t VALUE_LED1 = NTC_MIN_VALUE + NTC_INTERVAL_VALUE;
-    constexpr uint16_t VALUE_LED2 = VALUE_LED1 + NTC_INTERVAL_VALUE;
-    constexpr uint16_t VALUE_LED3 = VALUE_LED2 + NTC_INTERVAL_VALUE;
-    constexpr uint16_t VALUE_LED4 = VALUE_LED3 + NTC_INTERVAL_VALUE;
-
-    static uint16_t numInterrupts = 0;
-    if(numInterrupts < 2000) {
-        numInterrupts++;
-    } else {
-        numInterrupts = 0;
-        const uint16_t ntcValue = NTC_input.getRawValue();
-        currentNtcValue = ntcValue;
-
-        if(ntcValue < VALUE_LED1) {
-            ledD1ToD4.writeValue(0x1);
-            redLed.setState(IOState::LOW);
-            currentTemperatureRange = 1;
-        } else if(ntcValue < VALUE_LED2) {
-            ledD1ToD4.writeValue(0x3);
-            redLed.setState(IOState::LOW);
-            currentTemperatureRange = 2;
-        } else if(ntcValue < VALUE_LED3) {
-            ledD1ToD4.writeValue(0x7);
-            redLed.setState(IOState::LOW);
-            currentTemperatureRange = 3;
-        } else if(ntcValue < VALUE_LED4) {
-            ledD1ToD4.writeValue(0xF);
-            redLed.setState(IOState::LOW);
-            currentTemperatureRange = 4;
-        } else {
-            ledD1ToD4.writeValue(0xF);
-            redLed.setState(IOState::HIGH);
-            currentTemperatureRange = 5;
-        }
+void decreaseCounter(uint8_t &counter) {
+    if(counter > 0) {
+        counter--;
     }
 }
-void pb5Callback(ButtonState /*buttonState*/) {
-   enterInfiniteLoop = true;
+
+void timerInterrupt() {
+    _iq15 nextDatapoint = signalGenerator.getNextDatapoint();
+    // Print values of Oscilloscope
+    adcValue = adcCH1.getRawValue();
+    setpoint = _IQ15int(nextDatapoint);
+    newValue = true;
+    serialPrintInt(adcCH1.getRawValue());
+   // serialPrint(" ");
+    //serialPrintInt(_IQ15int(nextDatapoint));
+    serialPrintln("");
+
+    uint8_t PBvalues = pb1to4.getPBValues();
+    static uint8_t PB1debounceCnt = 0;
+    static uint8_t PB2debounceCnt = 0;
+    static uint8_t PB3debounceCnt = 0;
+    static uint8_t PB4debounceCnt = 0;
+
+    if(PBvalues & (0x01) && !PB1debounceCnt) { //PB1
+        signalGenerator.nextSignalShape();
+        PB1debounceCnt = 5;
+    } else if(PBvalues & (0x01 << 1) && !PB2debounceCnt) {  // PB2
+        signalGenerator.previousSignalShape();
+        PB2debounceCnt = 5;
+    }
+
+    decreaseCounter(PB1debounceCnt);
+    decreaseCounter(PB2debounceCnt);
+
+    if(PBvalues & (0x01 << 2) && !PB3debounceCnt) { //PB3
+        signalGenerator.increaseFrequency();
+        PB3debounceCnt = 5;
+    } else if(PBvalues & (0x01 << 3) && !PB4debounceCnt) {  // PB4
+        signalGenerator.decreaseFrequency();
+        PB4debounceCnt = 5;
+    }
+    decreaseCounter(PB3debounceCnt);
+    decreaseCounter(PB4debounceCnt);
+
+    btnDecreaseAmplitude.evaluateDebounce();
+    btnIncreaseAmplitude.evaluateDebounce();
+
+    DAC_IN.setDutyCycle(nextDatapoint);
+}
+
+void decreaseAmplitudeCallback(ButtonState /*buttonState*/) {
+    signalGenerator.decreaseAmplitude();
+}
+
+void increaseAmplitudeCallback(ButtonState /*buttonState*/) {
+    signalGenerator.increaseAmplitude();
+
 }
 
 int main() {
  initMSP();
 
- constexpr OutputHandle greenLed = GPIOs::getOutputHandle<IOPort::PORT_1, static_cast<uint8_t>(0)>();
- greenLed.init();
- greenLed.setState(IOState::HIGH);
+ btnDecreaseAmplitude.init();
+ btnDecreaseAmplitude.registerPressedStateChangeCallback(&decreaseAmplitudeCallback);
 
- PB5.init();
- PB5.registerStateChangeCallback(&pb5Callback);
+ btnIncreaseAmplitude.init();
+ btnIncreaseAmplitude.registerPressedStateChangeCallback(&increaseAmplitudeCallback);
 
- heatingResistorPwm.init();
+ pb1to4.init();
 
-
- ledD1ToD4.init();
- ledD1ToD4.start();
- ledD1ToD4.writeValue(0x0);
- redLed.init();
- redLed.setState(IOState::LOW);
+ DAC_IN.init();
+ DAC_IN.setPwmPeriod<250, std::chrono::microseconds>(); //4kHz
 
 
  Adc::getInstance().init();
@@ -150,47 +135,35 @@ int main() {
 
  // Timer with CLK_DIV = 8 and since the period of SMCLK is 1us we also let the timer know that.
  constexpr TimerConfigBase<8, 1> TIMER_CONFIG(TimerClockSource::Option::SMCLK);
- Timer<0>::getTimer().init(TIMER_CONFIG);
- // Creates a 1ms periodic task
- TaskHandler<1, std::chrono::milliseconds> displayTemperatureTask(&displaytemperatureTaskFunc, true);
- Timer<0>::getTimer().registerTask(TIMER_CONFIG, displayTemperatureTask);
+ Timer<1>::getTimer().init(TIMER_CONFIG);
+ // Creates a 10ms periodic task
+ TaskHandler<20, std::chrono::milliseconds> timerTask(&timerInterrupt, true);
+ Timer<1>::getTimer().registerTask(TIMER_CONFIG, timerTask);
 
- // Enable watchdog
- WDTCTL = WDTPW + WDTCNTCL + WDTSSEL;
-
- // Initialize display
- displaytemperatureTaskFunc();
-
+ //signalGenerator.setActiveSignalShape(SignalGenerator::Shape::TRAPEZOIDAL);
  while (true) {
-   // Reset Watchdog
-   WDTCTL = WDTPW + WDTCNTCL + WDTSSEL;
-   while(enterInfiniteLoop) {}
+     /*
+     uint8_t PBvalues = pb1to4.getPBValues();
 
-   // Clock = 1 MHz. We want to have the LED blinking with 4Hz. It has a period of 0,25, but we need to divide it by
-   // 2 because every half cycle we need to change output value. so 0,125 * 1000000 = 125000
-   __delay_cycles(125000);
-   greenLed.toggle();
+     if(PBvalues & (0x01)) { //PB1
+         signalGenerator.nextSignalShape();
+     } else if(PBvalues & (0x01 << 1)) {  // PB2
+         signalGenerator.previousSignalShape();
+     }
 
-#ifndef CONTROL_WITH_PWM
-   if(currentTemperatureRange < 4) {
-       // Sets heating on
-       heatingResistorOnOffPin.setState(IOState::HIGH);
-   } else {
-       // Sets heating off
-       heatingResistorOnOffPin.setState(IOState::LOW);
-   }
-#else
-   if(currentTemperatureRange < 4) {
-       // Sets heating on
-       heatingResistorPwm.setDutyCycle(500);
-   } else {
-       // Sets heating off
-       heatingResistorPwm.setDutyCycle(0);
-   }
-#endif
-   //serialPrint("Current NTC value: ");
-   //serialPrintInt(NTC_input.getRawValue());
-   //serialPrintln("");
+     if(PBvalues & (0x01 << 2)) { //PB3
+         signalGenerator.increaseFrequency();
+     } else if(PBvalues & (0x01 << 3)) {  // PB4
+         signalGenerator.decreaseFrequency();
+     }
+     if(newValue) {
+         serialPrintInt(adcValue);
+         //serialPrint(" ");
+         //serialPrintInt(setpoint);
+         serialPrintln("");
+         newValue = false;
+     }
+     */
  }
 
  return 0;
@@ -199,12 +172,17 @@ int main() {
 // Port 1 interrupt vector
 #pragma vector = PORT1_VECTOR
 __interrupt void Port_1_ISR(void) {
- // Get bit 3 => 0000 1000 = 0x08
- volatile const uint8_t pendingInterrupt = getRegisterBits(P1IFG, static_cast<uint8_t>(0x08), static_cast<uint8_t>(3));
+ // Get bit 5 and 6 => 0110 0000 = 0x60
+ volatile const uint8_t pendingInterrupt = getRegisterBits(P1IFG, static_cast<uint8_t>(0x60), static_cast<uint8_t>(5));
 
- PB5.getDebouncer().pinStateChanged();
+ if(pendingInterrupt > 1) {
+     btnIncreaseAmplitude.getDebouncer().pinStateChanged();
+ } else {
+     btnDecreaseAmplitude.getDebouncer().pinStateChanged();
+ }
+ //
 
- const uint8_t clearFlag = (pendingInterrupt << 0x03);
+ const uint8_t clearFlag = (pendingInterrupt << 0x05);
  resetRegisterBits(P1IFG, clearFlag);  // clear interrupt flag
 }
 
