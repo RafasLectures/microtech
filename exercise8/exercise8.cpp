@@ -10,7 +10,7 @@
 * Description:
 *
 * Pin connections:
-*       CON3:P1.3 <-> DAC_OUT
+*       CON3:P1.0 <-> DAC_OUT
 *       JP5 -> INT
 *       CON3:P3.6 <-> DAC_IN
 *       CON3:P1.5 <-> PB5
