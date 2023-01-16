@@ -275,9 +275,10 @@ public:
     // somehow I need to find a way to wrap the pin interrupt here and
     // add a callback. But for now we just enable the pin interrupt and
     // the rest has to be handled from the outside
-    setRegisterBits(PxIe, mBitMask);     // Enable interrupt
     setRegisterBits(PxIes, mBitMask);    // High /Low - Edge
     resetRegisterBits(PxIfg, mBitMask);  // Clear interrupt flag
+    setRegisterBits(PxIe, mBitMask);     // Enable interrupt
+
   }
 
   void disableInterrupt() const noexcept {

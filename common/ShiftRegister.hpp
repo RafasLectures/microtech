@@ -155,6 +155,26 @@ public:
     inputQD.init();
   }
 
+  uint8_t getPBValues() const noexcept {
+      constexpr uint8_t NUM_SHIFTS_TO_READ = 5;  // Since its 4 bits, we need to have 4 shifts + 1.
+
+      uint8_t returnValue = 0;
+      reset();  // clears the register
+      setMode(Mode::MIRROR_PARALLEL);
+      for (uint8_t i = 0; i < NUM_SHIFTS_TO_READ; i++) {
+        const IOState currentState = inputQD.getState();
+        if (currentState == IOState::HIGH) {
+            returnValue |= 0x1;
+        }
+        returnValue <<= 0x01;
+        ShiftRegisterBase::clockOneCycle();
+        setMode(ShiftRegisterBase::Mode::SHIFT_RIGHT);
+      }
+      returnValue >>= 0x01;
+      setMode(Mode::PAUSE);
+      return returnValue;
+  }
+
   /**
    * Returns the state of the QD output of the shift register
    */

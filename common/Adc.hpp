@@ -28,9 +28,9 @@ public:
    * Method to get the latest filtered ADC value
    * @return the latest filtered value
    */
-  uint16_t getFilteredValue() noexcept {
-    return smaFilter.filterNewSample(rawValue);
-  }
+  //uint16_t getFilteredValue() noexcept {
+  //  return smaFilter.filterNewSample(rawValue);
+  //}
 
 protected:
   /**
@@ -40,7 +40,7 @@ protected:
   constexpr AdcHandle(uint16_t& adcValueRef) : rawValue(adcValueRef) {}
 
 private:
-  SimpleMovingAverage<30> smaFilter;  ///< Moving Averaget filter of 30 samples. This can be templated in the future.
+  //SimpleMovingAverage<30> smaFilter;  ///< Moving Averaget filter of 30 samples. This can be templated in the future.
   uint16_t& rawValue;                 ///< Reference to the raw value.
 };
 
@@ -74,16 +74,20 @@ public:
     ADC10CTL0 &= ~ENC;
     while (ADC10CTL1 & ADC10BUSY){}
     // ADC10 on
-    // sample and hold time = 16 ADC Clock cycles = 16*0.2us = 3.2 us
+    // sample and hold time = 16 ADC Clock cycles = 8*0.2us = 1.6 us
     // Multiple sample and conversion on.
-    ADC10CTL0 = ADC10ON + ADC10SHT_2 + MSC;
+    ADC10CTL0 = ADC10ON + ADC10SHT_1 + MSC;
 
     // Repeat-sequence-of-channels mode
     // CLk source = ADC10OSC => around 5 MHz
-    // Clock division by 8, to make sure we can do the transfer with DTC for the channel
+    // DTC can take up to 4 MCKL cycles (4 us), so the sample and hold time should be
+    // at least 4us.
+    // sample and hold time = 16 ADC Clock cycles = 8*0.2us = 1.6 us
+    // Convert time = 13 ADC Clock cycles = 13*0.2us = 2.6us
+    // Total conversion of 1 channel = Sample and hold + convert time = 1.6us + 2.6us = 4.2us
     // Source of sample and hold from ADC10SC bit
     // Always start sampling from the ADC7, since we are populating the adcValues array with DTC
-    ADC10CTL1 = CONSEQ_3 + ADC10SSEL_0 + ADC10DIV_7 + SHS_0 + INCH_7;
+    ADC10CTL1 = CONSEQ_3 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_0;
 
     // Setup Data transfer control 0
     // The basic idea is that everytime the ADC does a conversion, the
@@ -93,7 +97,7 @@ public:
     // so when the user gets the AdcHandles, the latest raw value will always be available
     // without the user having to actively fetch any data from the ADC10MEM.
     ADC10DTC0 = ADC10CT;                                   // enable continuous transfer
-    ADC10DTC1 = sizeof(adcValues) / sizeof(adcValues[0]);  // Number of transfers is equal to the size of array.
+    ADC10DTC1 = 1; //sizeof(adcValues) / sizeof(adcValues[0]);  // Number of transfers is equal to the size of array.
     ADC10SA = (size_t)(&adcValues[0]);                     // Starts at address is the first entry of the array;
   }
 
@@ -119,7 +123,7 @@ public:
     setRegisterBits(ADC10AE0, bitMask);  // Sets pin as an ADC input
 
     // Creates the AdcHandle and passes the array entry equivalent to the pin to the handle.
-    AdcHandle retVal(adcValues[MAX_NUM_ADC_CHANNELS - pinNumber]);
+    AdcHandle retVal(adcValues[pinNumber]);
 
     return retVal;
   }

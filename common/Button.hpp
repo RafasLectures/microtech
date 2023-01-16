@@ -76,7 +76,7 @@ public:
    * debounce.
    */
   void evaluateDebounce() noexcept {
-
+      debouncer.evaluateDebounce();
   }
 
   /**
@@ -85,7 +85,7 @@ public:
    *
    * @param callbackPtr pointer to the callback function
    */
-  void registerStateChangeCallback(StateCallback callbackPtr) noexcept {
+  void registerPressedStateChangeCallback(StateCallback callbackPtr) noexcept {
     stateCallback = callbackPtr;
   }
 
@@ -119,9 +119,10 @@ private:
 
     // Make sure the callback pointer is not null before
     // calling it so there is no invalid memory access
-    if (stateCallback != nullptr) {
+    if (stateCallback != nullptr && newState == ButtonState::PRESSED) {
       stateCallback(state);  // calls the state callback
     }
+    state = ButtonState::RELEASED;
   }
   /**
    * Method to set the state of the button. Whenever a new state is set

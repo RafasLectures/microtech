@@ -17,6 +17,7 @@
 #include "Timer.hpp"
 #include "GPIOs.hpp"
 
+#include "IQmathLib.h"
 #include <msp430g2553.h>
 #include <chrono>
 #include <memory>
@@ -28,14 +29,14 @@ namespace Microtech {
 class Pwm {
 public:
   Pwm() = delete;
-  explicit Pwm(const OutputHandle& outputPin) : pwmOutput(outputPin) {}
+  explicit Pwm(const OutputHandle& outputPin) : pwmOutput(outputPin), TIMER_CONFIG(TimerClockSource::Option::SMCLK){}
 
   void init() const {
-    ///Timer<0>::getTimer().init(TIMER_CONFIG);
+    Timer<0>::getTimer().init(TIMER_CONFIG);
     pwmOutput.init();
     pwmOutput.disablePinResistor();
-    pwmOutput.setIoFunctionality(IOFunctionality::TA0_COMPARE_OUT1);
-    TA0CCTL1 = OUTMOD_3;
+    pwmOutput.setIoFunctionality(IOFunctionality::TA0_COMPARE_OUT2);
+    TA0CCTL2 = OUTMOD_3;
   }
 
   /**
@@ -45,7 +46,7 @@ public:
    * since the init configured TA0CTTL2, the compar value of the timer will
    * be in the pwmOutput.
    */
-  /*template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
+  template<uint64_t periodValue, typename Duration = std::chrono::microseconds>
   void setPwmPeriod() {
     // Pointer of a newTask
     std::unique_ptr<TaskHandler<periodValue, Duration>> newTask =
@@ -55,19 +56,19 @@ public:
       Timer<0>::getTimer().deregisterTask(*currentTask);
     }
     // Register the newTask
-    //Timer<0>::getTimer().registerTask(TIMER_CONFIG, *newTask);
+    Timer<0>::getTimer().registerTask(TIMER_CONFIG, *newTask);
 
     // Update dutycycle, since comparator value changed.
     updateDutyCycleRegister();
 
     currentTask = std::move(newTask);  // Stores new task pointer.
-  }*/
+  }
 
   /**
    * Method to set the PWM duty cycle.
-   * The duty cycle can be between 0 and 1000. it is equivalent to 0 and 100.0
+   * The duty cycle can be between 0 and 100.
    */
-  bool setDutyCycle(uint32_t newDutyCycle) {
+  bool setDutyCycle(const _iq15 newDutyCycle) {
     if (newDutyCycle > MAX_DUTY_CYCLE) {
       return false;
     }
@@ -85,20 +86,19 @@ private:
    * Method to configure the register responsible by the duty cycle.
    */
   void updateDutyCycleRegister() {
-    const uint32_t valueCCR0 = TACCR0;  // Reads current "period" register
-    // const uint32_t halfDutyCycle = dutyCycle/2;
+    const _iq15 valueCCR0 = _IQ15(TACCR0);  // Reads current "period" register
     //  Calculates the value of the CCR2 based on the value of the current CCR0 value.
-    const uint32_t valueCCR1 = (valueCCR0 * dutyCycle /*+ halfDutyCycle*/) / MAX_DUTY_CYCLE;
-    TA0CCR1 = valueCCR1;
+    const _iq15 valueCCR1 = _IQ15div(_IQ15mpy(valueCCR0, dutyCycle), MAX_DUTY_CYCLE);
+    TA0CCR2 = _IQ15int(valueCCR1);
   }
 
-  static constexpr uint32_t MAX_DUTY_CYCLE = 1000;
+  static constexpr _iq15 MAX_DUTY_CYCLE = _IQ15(100.0);
 
   const OutputHandle pwmOutput;
 
-  //static constexpr TimerConfigBase<8, 1> TIMER_CONFIG{};
-  //std::unique_ptr<TaskHandlerBase> currentTask;
-  uint32_t dutyCycle = 0;
+  const TimerConfigBase<8, 1> TIMER_CONFIG;
+  std::unique_ptr<TaskHandlerBase> currentTask;
+  _iq15 dutyCycle = 0;
 };
 
 }  // namespace Microtech

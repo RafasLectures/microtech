@@ -1,5 +1,1 @@
-It was an interesting exercise. I struggled to understand exactly some tasks were requiring.
-For 2e it is a little unclear whether I am allowed to change the timer A0 period or not.
-The last sentence of 2e is also a little misleading to me, it gives the impression that it should not be
-overheating anymore, but since I am not allowed to change where my controller is running, 
-it will always cause overheating by the deadlock.
+Nice exercise. My only struggle was to generate the sine wave, but then I remembered TI has this IQMathLibrary.

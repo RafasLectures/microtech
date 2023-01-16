@@ -24,7 +24,7 @@ public:
     if (buttonPushed == true) {  // If the button was pushed
       debounceCounter++;         // Increase debounce counter
 
-      if (debounceCounter > 2) {  // If the counter is bigger than 2
+      if (debounceCounter > 10) {  // If the counter is bigger than 10
         allowTrigger = true;      // Allows trigger when the button is pushed
         buttonPushed = false;
         debounceCounter = 0;
