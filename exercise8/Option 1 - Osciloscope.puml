@@ -1,7 +1,7 @@
 @startuml
 'https://plantuml.com/activity-diagram-beta
 |a| Infinite Loop
-|b| Timer Interrupt (1-10 ms)
+|b| Timer Interrupt (20 ms)
 |c| Button Interrupt
 
 fork
@@ -20,12 +20,11 @@ So there will be a new value
 for one specific channel in a buffer every 33.6us.
 That should give enough accuracy.
 endnote
-partition While true{
+partition Infinite loop{
 
-if (New Osciloscope Value) then (true)
-:Send new ADC reading via Serial port;
-else (false)
-endif
+repeat
+repeat while (true) is (true)
+
 }
 stop
 fork again
@@ -35,14 +34,14 @@ start
 partition "Process of Oscilloscope" {
 if (Time to execute Osciloscope) then (true)
     :Get raw value from ADC;
-    :Write to global variable to be read by infinite loop;
+    :Send new ADC reading via Serial port;
 else (false)
 endif
 }
 
 partition Sample of PB1-4{
 :Sample button values from shift register;
-if(Button changed state) then (true)
+if(Button was pressed) then (true)
 :Based on pressed button set Signal Generator to
 switch waveform or change frequency;
 else (false)
@@ -58,17 +57,17 @@ if (Time to execute Signal Generator) then (true)
     case (rect)
         :Generate new rect output;
     endswitch
-    ->//Values between 0 and 1000//;
+    ->//Values between 0 and 100.0//;
     :Multiply result by configured maximum amplitude;
-    ->//Result between 0 and 1000000//;
+    ->//Result between 0 and 100.0//;
     :Calculate value to be written in PWM register to set duty cycle
     based on current PWM frequency using rate of previous multiplication;
     floating note left
-    The raw signal will always go from 0 to 1000.
+    The raw signal will always go from 0 to 100.
     The final signal amplitude (after amplitude set by user)
-    will always go from 0 to 1000000.
+    will always go from 0 to 1.
     Then we just need to set the duty cycle
-    which can go from 0 to 100%, where 100% is 1000000
+    which can go from 0 to 100%
     endnote
     :Set new PWM duty cycle;
 else (false)
@@ -82,8 +81,7 @@ fork again
 start
 :Identify pressed button;
 :Based on pressed button set Signal Generator to
-increase or decrease amplitude.
-Amplitude is from 0 to 1000 (100.0);
+increase or decrease amplitude;
 stop
 
 
