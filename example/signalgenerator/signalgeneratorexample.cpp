@@ -19,8 +19,7 @@ int main() {
     if(i == 2250 && !freqUpdated) {
       freqUpdated = true;
       signalGenerator.setNewFrequency(2);
-      signalGenerator.setActiveSignalShape(SignalGenerator::Shape::TRAPEZOIDAL);
-      //activeSignal = &rectangular;
+      signalGenerator.nextSignalShape();
     }
     x.at(i) = i;
     y.at(i) = signalGenerator.getNextDatapoint();

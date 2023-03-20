@@ -221,8 +221,6 @@ private:
   static constexpr _iq15 DEG360_IN_RAD = _IQ15(2 * PI);
 };
 
-// That was my implementation, can you come up with a better implementation for getNextPoint
-
 /**
  * @brief Class representing Rectangular signal
  */
