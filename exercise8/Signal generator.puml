@@ -1,0 +1,41 @@
+@startuml
+'https://plantuml.com/class-diagram
+class SignalProperties {
+    + setNewFrequency(_iq15)
+    + increasePhase()
+    + getCurrentFrequency()
+    - samplingFreqHz
+    - currentSignalFrequency
+    - phaseStep
+    - currentPhase
+}
+class SignalGenerator {
++ _iq15 getNextDatapoint()
++ void setNewFrequency(const _iq15)
++ void nextSignalShape()
++ void previousSignalShape()
++ void increaseFrequency()
++ void decreaseFrequency()
++ void increaseAmplitude()
++ void decreaseAmplitude()
+
+- iSignalType* activeSignal
+- SignalProperties signalProperties
+- _iq15 outputAmplitudePercentage
+}
+
+interface iSignalType {
++ _iq15 getNextPoint(SignalProperties&)
+}
+
+class Sinusoidal
+
+class Trapezoidal
+class Rectangular
+
+iSignalType <|-down- Sinusoidal
+iSignalType <|-down- Trapezoidal
+iSignalType <|-down- Rectangular
+
+SignalGenerator *-down- iSignalType
+@enduml

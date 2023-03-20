@@ -45,7 +45,7 @@ public:
    */
   void increasePhase() noexcept {
     // calculate new phase and keep it within 0 and 2pi.
-    currentPhase = (currentPhase + phaseStep) % _IQ15(2 * PI);
+    currentPhase = std::fmod((currentPhase + phaseStep), _IQ15(2 * PI));
   }
 
   /**

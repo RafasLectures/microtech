@@ -1,0 +1,11 @@
+@startuml
+'https://plantuml.com/activity-diagram-beta
+
+start
+:Identify pressed button;
+:Based on pressed button set Signal Generator to
+increase or decrease amplitude;
+stop
+
+
+@enduml

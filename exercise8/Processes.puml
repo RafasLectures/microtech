@@ -1,0 +1,44 @@
+@startuml
+'https://plantuml.com/activity-diagram-beta
+|a| Infinite Loop
+|b| Timer Interrupt (20 ms)
+|c| Button Interrupt
+
+fork
+|a|
+-[hidden]->
+start
+
+:Initialize Microcontroller and Peripherals;
+
+partition Infinite loop{
+
+repeat
+repeat while (true) is (true)
+
+}
+stop
+fork again
+|b|
+-[hidden]->
+start
+:Next set point of signal generator;
+:Print ADC value on to UART;
+:Read buttons PB1-4 and debouncing
+and execute functionality according
+to pressed button;
+:Write signal generator set point in PWM;
+
+stop
+
+fork again
+|c|
+-[hidden]->
+start
+:Identify pressed button;
+:Based on pressed button set Signal Generator to
+increase or decrease amplitude;
+stop
+
+
+@enduml

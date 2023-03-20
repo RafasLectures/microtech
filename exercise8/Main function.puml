@@ -1,0 +1,16 @@
+@startuml
+'https://plantuml.com/activity-diagram-beta
+
+start
+:Initialize Microcontroller and Peripherals;
+
+partition Infinite loop{
+
+repeat
+repeat while (true) is (true)
+
+}
+stop
+
+
+@enduml

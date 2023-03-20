@@ -1,0 +1,15 @@
+@startuml
+'https://plantuml.com/activity-diagram-beta
+
+start
+:Next set point of signal generator;
+:Print ADC value on to UART;
+:Read buttons PB1-4 and debouncing
+and execute functionality according
+to pressed button;
+:Write signal generator set point in PWM;
+
+stop
+
+
+@enduml
